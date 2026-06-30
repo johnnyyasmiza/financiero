@@ -56,67 +56,32 @@ function parseMerchant(text: string) {
 export function extractReceiptAmount(ocrText: string): number | null {
   if (!ocrText) return null;
 
-  const text = ocrText
+  const lines = ocrText
     .replace(/\u00A0/g, " ")
-    .replace(/[€$]/g, "")
-    .replace(/dh|mad/gi, "")
-    .replace(/[^\S\r\n]+/g, " ")
-    .trim();
-
-  const lines = text
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
 
-  const amountRegex = /\b\d{1,6}(?:[.,]\d{2})\b/g;
-
-  const parseAmount = (value: string): number => Number(value.replace(",", "."));
-
-  const getAmounts = (line: string): number[] => {
-    const matches = line.match(amountRegex) || [];
-    return matches.map(parseAmount).filter((amount) => Number.isFinite(amount));
-  };
-
-  const totalKeywords = [
-    "TOTAL",
-    "NET A PAYER",
-    "NET À PAYER",
-    "MONTANT A PAYER",
-    "MONTANT À PAYER",
-    "A PAYER",
-    "À PAYER",
-  ];
-
-  const forbiddenTotalKeywords = [
-    "HT",
-    "TVA",
-    "TAXE",
-    "SOUS TOTAL",
-    "SOUS-TOTAL",
-    "SUBTOTAL",
-    "REMISE",
-    "DISCOUNT",
-    "RENDU",
-    "CHANGE",
-    "EXONERE",
-    "EXONÉRÉ",
-    "EXONERER",
-  ];
-  const forbiddenKeywords = [...forbiddenTotalKeywords, "TTC"];
-
-  const normalize = (line: string): string =>
-    line
+  const normalize = (value: string) =>
+    value
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .toUpperCase();
 
+  const amountRegex = /\b\d{1,6}(?:[.,]\d{1,2})\b/g;
+
+  const getAmounts = (line: string): number[] => {
+    const matches = line.match(amountRegex) || [];
+    return matches.map((match) => Number(match.replace(",", "."))).filter((amount) => Number.isFinite(amount));
+  };
+
+  const isTotalLine = (normalizedLine: string): boolean =>
+    /\bTOTAL\b/.test(normalizedLine) && !/\bSOUS[- ]?TOTAL\b/.test(normalizedLine) && !/\bSUBTOTAL\b/.test(normalizedLine);
+
   for (const line of lines) {
     const normalizedLine = normalize(line);
 
-    const hasTotalKeyword = totalKeywords.some((keyword) => normalizedLine.includes(normalize(keyword)));
-    const hasForbiddenKeyword = forbiddenTotalKeywords.some((keyword) => normalizedLine.includes(normalize(keyword)));
-
-    if (hasTotalKeyword && !hasForbiddenKeyword) {
+    if (isTotalLine(normalizedLine)) {
       const amounts = getAmounts(line);
       if (amounts.length > 0) {
         return amounts[amounts.length - 1];
@@ -124,20 +89,44 @@ export function extractReceiptAmount(ocrText: string): number | null {
     }
   }
 
-  const paymentKeywords = ["ESPECES", "ESPÈCES", "CASH", "CARTE", "CB", "VISA", "MASTERCARD"];
+  for (let index = 0; index < lines.length; index += 1) {
+    const normalizedLine = normalize(lines[index]);
+
+    if (isTotalLine(normalizedLine)) {
+      for (let nextIndex = index; nextIndex <= Math.min(index + 3, lines.length - 1); nextIndex += 1) {
+        const amounts = getAmounts(lines[nextIndex]);
+        if (amounts.length > 0) {
+          return amounts[amounts.length - 1];
+        }
+      }
+    }
+  }
+
+  const netPayKeywords = ["NET A PAYER", "NET À PAYER", "MONTANT A PAYER", "MONTANT À PAYER", "A PAYER", "À PAYER"];
   for (const line of lines) {
     const normalizedLine = normalize(line);
 
-    const hasPaymentKeyword = paymentKeywords.some((keyword) => normalizedLine.includes(normalize(keyword)));
-    const hasForbiddenKeyword = forbiddenKeywords.some((keyword) => normalizedLine.includes(normalize(keyword)));
-
-    if (hasPaymentKeyword && !hasForbiddenKeyword) {
+    if (netPayKeywords.some((keyword) => normalizedLine.includes(normalize(keyword)))) {
       const amounts = getAmounts(line);
       if (amounts.length > 0) {
         return amounts[amounts.length - 1];
       }
     }
   }
+
+  const paymentKeywords = ["ESPECES", "ESPÈCES", "CARTE", "CASH", "CB", "VISA", "MASTERCARD"];
+  for (const line of lines) {
+    const normalizedLine = normalize(line);
+
+    if (paymentKeywords.some((keyword) => normalizedLine.includes(normalize(keyword)))) {
+      const amounts = getAmounts(line);
+      if (amounts.length > 0) {
+        return amounts[amounts.length - 1];
+      }
+    }
+  }
+
+  const forbiddenKeywords = ["HT", "TVA", "TAXE", "TTC", "EXONERER", "EXONERE", "EXONÉRÉ"];
 
   const allAmounts = lines
     .filter((line) => {
@@ -212,6 +201,10 @@ export function parseReceiptText(text: string): ParsedReceipt {
 }
 
 export const receiptParserExamples = [
+  {
+    input: "HT 28.33\nTVA 5.67\nTTC 34.00\nEXONERER 3.00\nTOTAL 37.00\nESPECES 37.00",
+    expectedMontant: 37,
+  },
   {
     input: "TOTAL 149.29 90521",
     expectedMontant: 149.29,
