@@ -1,8 +1,8 @@
-const TARGET_URL = "https://www.marjane.ma/courses-en-ligne/11-marche";
-const MAX_PRODUCTS = 20;
-
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+
+const TARGET_URL = "https://www.marjane.ma/courses-en-ligne/11-marche";
+const MAX_PRODUCTS = 20;
 
 type AuditProduct = {
   name: string;

@@ -1,9 +1,5 @@
-import { recipes } from "@/lib/recipes";
-import { normalizeRecipeName } from "@/lib/recipes/seed-recipes";
-import { supabase } from "@/lib/supabase";
-
-export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 function supabaseMessage(error: unknown) {
   const value = error as { message?: string; details?: string; hint?: string; code?: string };
@@ -11,6 +7,11 @@ function supabaseMessage(error: unknown) {
 }
 
 export async function POST() {
+  const [{ recipes }, { normalizeRecipeName }, { supabase }] = await Promise.all([
+    import("@/lib/recipes"),
+    import("@/lib/recipes/seed-recipes"),
+    import("@/lib/supabase"),
+  ]);
   const errors: string[] = [];
   let created = 0;
   let skipped = 0;
