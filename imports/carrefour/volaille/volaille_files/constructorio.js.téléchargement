@@ -1,0 +1,6 @@
+(($) => {
+    window.constructorio = new ConstructorioClient({
+        apiKey: cnstrc.indexKey,
+        debug: true,
+    });
+})(jQuery);

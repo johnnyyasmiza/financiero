@@ -1,0 +1,77 @@
+$('document').ready(function () {
+    common.toggleQuantityListener(true);
+
+    cart.setUpUom();
+
+    cart.initProductFormApi();
+
+    pageEvents.notSameStoreModalConfirmation();
+
+    pageEvents.initRating();
+
+    pageEvents.initAvatar();
+
+    pageEvents.initReviews();
+
+    common.initSelectPicker();
+
+    cart.initRemoveFromCart();
+
+    cart.initRemoveFromPartialCart();
+
+    cart.initAddToWishlist();
+
+    cart.initRemoveFromWishlist();
+
+    cart.initAddToCart();
+
+    cart.initIncrementPartialCart();
+
+    cart.initDecrementPartialCart();
+
+    cart.initIncrementProductListing();
+
+    cart.initDecrementProductListing();
+
+    cart.initpieceUnitProductList();
+
+    cart.initDefaultWeightProductList();
+
+    cart.initpieceUnitProductDetails();
+
+    cart.initDefaultWeightProductDetails();
+
+    common.toggleCartSummaryEvents(true);
+
+    cart.initIncrementProductDetails();
+
+    cart.initDecrementProductDetails();
+
+    pageEvents.initMobileMenu();
+
+    pageEvents.initChangeAddressLocation();
+
+    pageEvents.initPartialCart();
+
+    pageEvents.initBigSearch();
+
+    pageEvents.initDropdownMenus();
+
+    pageEvents.initMobileView();
+
+    pageEvents.initFooter();
+
+    pageEvents.initTermsAndConditions();
+
+    pageEvents.initMobileSearch();
+
+    pageEvents.initMobileSearch();
+
+    pageEvents.initMobileSearch();
+
+    pageEvents.initSendReview();
+
+    pageEvents.hidePaginationIfnotExistent();
+
+    pageEvents.setDefaultAddressModal();
+});

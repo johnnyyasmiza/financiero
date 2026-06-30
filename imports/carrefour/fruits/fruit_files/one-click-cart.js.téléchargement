@@ -1,0 +1,55 @@
+$(() => {
+  // Global variables
+  const {launchToast, toggleLoader} = common;
+  const {locale} = window;
+
+  // DOM Elements and DOM Classes
+  const $modalBtnTrigger = $('.js-one-cart-click-modal-button');
+  const modalClassSelector = '.js-one-cart-click-modal';
+  const modalConfirmClassSelector = '.js-modal-confirm';
+  const $modal = $(modalClassSelector);
+  const $modalConfirm = $(modalConfirmClassSelector);
+  const disabledClassName = 'disabled';
+  const $cart = $('#cart-btn');
+
+  // UI
+  const uiShowCart = () => $cart.trigger('click');
+  const uiToastError = () => launchToast();
+  const uiToggleLoader = (isVisible) => {
+    toggleLoader(isVisible);
+    $modal.find('button').toggleClass(disabledClassName);
+  };
+
+  // API
+  const apiRequest = (url, type) => $.ajax({
+    url,
+    type,
+  });
+  // Actions
+  const actionOpenModal = () => $modal.modal();
+  const actionModalConfirm = () => {
+    const {serverEndpoint} = $modalConfirm.data();
+
+    uiToggleLoader(true);
+
+    apiRequest(serverEndpoint, 'post')
+      .done(() => {
+        return window.location.href = `/${locale}/cart`;
+
+        $modal.modal('toggle');
+        uiShowCart();
+      })
+      .fail(() => uiToastError())
+      .always(() => uiToggleLoader(false));
+  };
+
+  // Events
+  $modalBtnTrigger.on('click', actionOpenModal);
+  $modal.on('shown.bs.modal', () => {
+    $modal.on('click', modalConfirmClassSelector, actionModalConfirm);
+  });
+  $modal.on('hidden.bs.modal', () => {
+    $modal.off('click', modalConfirmClassSelector, actionModalConfirm);
+  });
+  $modal.find(`button.${disabledClassName}`).on('click', event => event.stopPropagation());
+});

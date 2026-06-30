@@ -1,0 +1,54 @@
+const $body = $('body');
+
+const afTrigger = (eventName, eventValue, eventRevenueCurrency) => {
+  const {cartTotal} = eventValue;
+  const afObject = {
+    eventType: 'EVENT',
+    eventName,
+    eventRevenue: 0,
+    eventRevenueCurrency,
+    eventValue,
+  };
+
+  if (cartTotal) {
+    afObject.eventValue.cart_value = (cartTotal / 100)
+      .toFixed(2)
+      .toString()
+      .replace('.', ',');
+
+    delete afObject.eventValue.cartTotal;
+  }
+
+  if (window.enableConsoleLogs) {
+    console.log('AppsFlyer Analitycs event', afObject);
+  }
+
+  return window.AF && window.AF('pba', 'event', afObject);
+};
+
+window.afAnalyticsAddToCart = ({currency, orderId, price, productName, storeName, userId, vendorName}) => {
+  const totalCartValueUpdatedEvent = 'totalCartValueUpdated';
+  const addToCartRequestFailureEvent = 'addCartRequestFailure';
+  const afObjectEvent = {
+    order_id: orderId,
+    product_name: productName,
+    price,
+    store_name: storeName,
+    vendor_name: vendorName,
+    user_id: userId,
+  }
+
+  $body.off(totalCartValueUpdatedEvent + ' ' + addToCartRequestFailureEvent);
+
+  $body.on(totalCartValueUpdatedEvent, (ev, cartTotal) =>
+    afTrigger('add_to_cart', {
+      ...afObjectEvent,
+      cartTotal,
+    }, currency),
+  );
+
+  $body.on(addToCartRequestFailureEvent, (ev) =>
+    afTrigger('add_to_cart', afObjectEvent, currency),
+  );
+};
+

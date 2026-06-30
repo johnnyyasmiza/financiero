@@ -1,0 +1,481 @@
+$(() => {
+  // Global variables
+  const {api, imagePlaceholder, initSearchStore, currency} = window;
+
+  if (!api) return;
+
+  const {
+    apiGwBaseUrl: gwBaseUrl,
+  } = api;
+
+  // Variables
+  let inputDebounce = null;
+  const defaultAnimationDuration = 500;
+  const debounceDuration = defaultAnimationDuration / 2;
+  const scrollAnimationDuration = defaultAnimationDuration;
+
+  // DOM Elements and DOM Classes
+  const $window = $(window);
+  const $html = $('html');
+  const $body = $('body');
+  const lang = $html.attr('lang');
+  const apiGwPublicUrl = (version) => `${gwBaseUrl}/public/v${version}/${lang}`;
+  const $pageOverlay = $('.js-page-overlay');
+  const $inputWrapper = $('#js-global-store-search');
+  const $inputSearch = $('.js-global-store-product-search-input');
+  const $modal = $('#js-global-store-product-search-modal');
+  const $storesSwitch = $('#js-stores-switch');
+  const $searchBtn = $('.js-search-btn');
+  const activeClassName = 'active';
+  const disabledClassName = 'disabled';
+  const hiddenClassName = 'hidden';
+  const loadingClassName = 'loading';
+  const animationClassName = 'animation';
+  const narrowClassName = 'narrow';
+  const notAvailableClassName = 'not-available';
+  const freezePageClassName = 'freezePage';
+  const overlayOpenedClassName = 'overlay-opened';
+  const searchFinishedDataName = 'search-finished-keyword';
+  const storeSlugDataName = 'store-slug';
+  const storeSearchIdName = 'store-type-search-input';
+  const productsListTriggerClassName = 'js-products-list-trigger';
+  const productsListTriggerClassSelector = `.${productsListTriggerClassName}`;
+  const searchKeywordCardClassSelector = '.js-global-store-search-keyword-card';
+  const loadingCardClassSelector = '.js-global-store-search-loading-card';
+  const productsListClassSelector = '.js-global-store-products-list';
+  const globalStoreClassSelector = '.js-global-store-search-store-card';
+  const storesData = $inputWrapper.data('stores');
+  const $modalContainer = $modal.find('.js-modal-container');
+  const $templateKeyword = $("script#js-global-store-search-keyword-card-template");
+  const $templateStoreCard = $("script#js-global-store-search-store-card-template");
+  const $templateProductCard = $("script#js-global-store-product-card-template");
+  const $templateLoadingCard = $("script#js-global-store-loading-card-template");
+  const $templateNoResults = $("script#js-global-store-no-results-template");
+  const $spinnerLoaderSearchInput = $('.js-spinner-loader-search-input');
+  const amountOfLoadingCards = 6;
+  const storeProductsLimit = 6;
+
+  if (!$inputSearch.length) return;
+
+  // Getters
+  const isModalOpened = () => $modal.data('bs.modal')._isShown;
+  const iSstoreSearchEnabled = () => $inputSearch.is(`#${storeSearchIdName}`);
+  const isProductsListVisible = () => $(globalStoreClassSelector).length > 0;
+  const getDiscountPercentage = (originalPrice, price) => (originalPrice - price) / originalPrice * 100;
+
+  // API
+  const apiRequestProductsSuggestions = (keyword) => {
+    const storesId = storesData.map(({id}) => id);
+    const storesQueryStringRequest = storesId.reduce((accumulator, currentValue, currentIndex) =>
+        `${accumulator}stores.id:${currentValue}${currentIndex !== storesId.length - 1 ? ` OR ` : ''}`,
+      '');
+
+    const data = {
+      'criteria[filters]': storesQueryStringRequest,
+      'criteria[search][type]': 'contains',
+      'criteria[search][value]': keyword,
+      filtersOnly: true,
+    };
+
+    return $.ajax(`${apiGwPublicUrl(4)}/products/search`, {data})
+      .then(({facets}) => {
+        if (facets.length > 0) {
+          return facets.filter(({key}) => key === 'stores.id').pop()?.values || [];
+        }
+
+        return [];
+      })
+  };
+  const apiRequestProductsInStores = (keyword, storeSlug) => {
+    const data = {
+      'criteria[search][type]': 'contains',
+      'criteria[search][value]': keyword,
+    };
+
+    return $.ajax(`${apiGwPublicUrl(3)}/stores/${storeSlug}/search`, {data})
+      .then(({_embedded}) => {
+        const { items } = _embedded;
+
+        return items.map(({name, images, translations, storeVariants, vendor}) => {
+          const {slug: productSlug} = translations.filter(({locale}) => locale === lang)[0];
+          const {slug: storeSlug} = vendor;
+
+          // Price
+          const storeVariant = Object.values(storeVariants)[0];
+          const pricings = Object.values(storeVariant.channelPricings)[0]
+          const {price, originalPrice} = pricings;
+          const variantId = storeVariant.id;
+
+          return {
+            variantId,
+            name,
+            images,
+            productSlug,
+            storeSlug,
+            originalPrice,
+            price,
+          };
+        });
+      });
+  };
+
+  // Actions
+  const actionRenderTemplateKeyword = ({keyword, name, slug, resultsCount}) => {
+    const $renderTemplate = $($templateKeyword.html());
+    const link = `/${lang}/search/${slug}?criteria[search][value]=${keyword}`;
+
+    $('.js-keyword', $renderTemplate).text(keyword);
+
+    if (name && resultsCount) {
+      $renderTemplate
+        .data(storeSlugDataName, slug)
+        .attr('href', link);
+      $('.js-where', $renderTemplate).text(name);
+      $('.js-results-count', $renderTemplate).text(resultsCount);
+    } else {
+      $renderTemplate
+        .addClass('js-products-list-trigger alternate-color');
+      $('.js-details', $renderTemplate).remove();
+    }
+
+    $modalContainer.append($renderTemplate);
+  };
+  const actionRenderTemplateStoreCard = ({searchKeyword, storeSlug, image, name}) => {
+    const $renderTemplate = $($templateStoreCard.html());
+    const storeImageClassSelector = '.js-store-image';
+    const $storeImage = $(storeImageClassSelector, $renderTemplate);
+    const imageAlt = $storeImage.attr('alt') + name;
+    const link = `/${lang}/search/${storeSlug}?criteria[search][value]=${searchKeyword}`;
+
+    $renderTemplate.filter(productsListClassSelector).data(storeSlugDataName, storeSlug);
+    $renderTemplate.filter('a').attr('href', link);
+
+    $storeImage.attr('src', image);
+    $storeImage.attr('alt', imageAlt);
+
+    $('.js-store-name', $renderTemplate).text(name);
+
+    $modalContainer.append($renderTemplate);
+  };
+  const actionRenderTemplateProductCard = ({variantId, name, images, productSlug, originalPrice, price, storeSlug}) => {
+    const $renderTemplate = $($templateProductCard.html());
+    const hasImages = images.length > 0;
+    const image = hasImages ? `${getImagePath()}/${images[0]?.path}` : imagePlaceholder;
+    const productImageClassSelector = '.js-product-image';
+    const $productImage = $(productImageClassSelector, $renderTemplate);
+    const imageAlt = $productImage.attr('alt') + name;
+    const $productDiscount = $('.js-product-discount', $renderTemplate);
+    const link = `/${lang}/${storeSlug}/products/${productSlug}/${variantId}`;
+    // Price and discount
+    const hasDiscount = originalPrice !== price;
+    const discountPercentageValue = getDiscountPercentage(originalPrice, price);
+    const discountPercentage = `${Math.round(discountPercentageValue)}%`
+    const productPriceValue = ((hasDiscount ? price : originalPrice) / 100).toFixed(2);
+    const productPrice = `${(productPriceValue.toString()).replace('.', ',')} ${currency}`;
+
+    $renderTemplate.find('a').attr('href', link);
+
+    $productImage.attr('src', image);
+    $productImage.attr('alt', imageAlt);
+
+    $('.js-product-name', $renderTemplate).text(name);
+    $('.js-product-price', $renderTemplate).text(productPrice);
+
+    if (hasDiscount) {
+      $productDiscount
+        .text(discountPercentage)
+        .removeClass(hiddenClassName);
+    }
+
+    const $productsList = $modalContainer.find(productsListClassSelector).filter((index, element) => $(element).data(storeSlugDataName) === storeSlug);
+
+    $productsList.find('.row').append($renderTemplate);
+  };
+  const actionRenderTemplateLoadingCard = (cardClassName) => {
+    const $renderTemplate = $($templateLoadingCard.html());
+
+    $renderTemplate
+      .addClass(cardClassName)
+      .removeClass(hiddenClassName);
+
+    $modalContainer.append($renderTemplate);
+  };
+  const actionRenderTemplateNoResults = () => {
+    const $renderTemplate = $($templateNoResults.html());
+    $modalContainer.append($renderTemplate);
+  };
+  const actionModalUpdateCss = () => {
+    const $modalDialog = $modal.find('.modal-dialog');
+
+    const windowHeight = $window.height();
+    const windowTopOffset = $window.scrollTop();
+    const inputTopOffset = $inputSearch.offset()?.top;
+    const inputHeight = $inputSearch.outerHeight();
+    const inputTopMargin = 15;
+    let modalTopPosition = inputTopOffset - windowTopOffset + inputHeight + inputTopMargin;
+    const modalDialogHeight = windowHeight - modalTopPosition - inputTopMargin;
+
+    const updateCss = () => $modalDialog.css({
+      height: modalDialogHeight,
+      top: modalTopPosition,
+    });
+
+    if (windowTopOffset > inputTopOffset - inputTopMargin) {
+      modalTopPosition = inputHeight + inputTopMargin * 2;
+
+      $html
+        .stop()
+        .animate({
+          scrollTop: inputTopOffset - inputTopMargin,
+        }, scrollAnimationDuration, 'linear');
+    }
+
+    updateCss();
+  };
+  const actionModalShow = () => {
+    if (isModalOpened() || iSstoreSearchEnabled()) return;
+
+    const $modalDialog = $modal.find('.modal-dialog');
+    const modalContainerHtml = $modalContainer.html();
+    const inputSearchValue = $inputSearch.val();
+    const emptyModalContainer = modalContainerHtml === '' && inputSearchValue === '';
+
+    if (emptyModalContainer) {
+      $modalDialog.addClass(hiddenClassName);
+    }
+
+    if (isProductsListVisible()) {
+      $searchBtn.addClass(notAvailableClassName);
+    }
+
+    uiOverlayShow();
+    actionModalUpdateCss();
+
+    $modal.modal('toggle');
+  };
+  const actionInputKeyup = (event) => {
+    const {target, which} = event;
+    const $target = $(target);
+    const searchKeyword = target.value;
+    const currentSearchKeyword = $inputSearch.data(searchFinishedDataName);
+    const isEnterKeyPressed = which === 13;
+
+    if (iSstoreSearchEnabled()) return;
+
+    $searchBtn.removeClass(notAvailableClassName);
+
+    const $modalDialog = $modal.find('.modal-dialog');
+
+    if (!searchKeyword) {
+      $modalDialog.addClass(hiddenClassName);
+      return uiClearSearchResults();
+    }
+
+    if (isEnterKeyPressed) return !isProductsListVisible() && actionProductsListTrigger();
+
+    if (currentSearchKeyword === searchKeyword) return;
+
+    $modalDialog
+      .addClass(narrowClassName)
+      .removeClass(hiddenClassName);
+
+    if (!$modalContainer.hasClass(loadingClassName)) {
+      uiClearSearchResults();
+      uiLoaderSearchShow();
+      uiLoadingCardShow('keyword-card');
+    }
+
+    clearTimeout(inputDebounce);
+
+    inputDebounce = setTimeout(() => {
+      apiRequestProductsSuggestions(searchKeyword)
+        .done(response => {
+          uiClearSearchResults();
+          $inputSearch.data(searchFinishedDataName, searchKeyword);
+
+          if (response.length > 0) {
+            // Render first keyword template used for products list trigger
+            actionRenderTemplateKeyword({keyword: searchKeyword});
+
+            return response.map(({name: storeId, count: resultsCount}) => {
+              const currentStore = storesData.find(({id}) => id === storeId);
+
+              if (!currentStore) return;
+
+              const {slug, name, image} = currentStore;
+
+              actionRenderTemplateKeyword({
+                keyword: searchKeyword,
+                name,
+                slug,
+                resultsCount,
+              });
+            });
+          }
+
+          return actionRenderTemplateNoResults();
+        })
+        .fail(() => uiShowError())
+        .always(() => {
+          uiLoaderSearchHide();
+          uiLoadingCardHide();
+        });
+    }, debounceDuration);
+  };
+  const actionProductsListTrigger = () => {
+    $searchBtn.addClass(notAvailableClassName);
+    const currentSearchKeyword = $inputSearch.data(searchFinishedDataName);
+
+    const storesSlug = $body.find(searchKeywordCardClassSelector).map((index, element) => {
+      const $element = $(element);
+      const slug = $element.data(storeSlugDataName);
+      return slug && slug;
+    });
+
+    const currentStoresData = storesSlug.map((index, currentSlug) => storesData.filter(({slug}) => slug === currentSlug).pop());
+    const requests = storesSlug.map((index, slug) => apiRequestProductsInStores(currentSearchKeyword, slug));
+
+    const $modalDialog = $modal.find('.modal-dialog');
+    $modalDialog.removeClass(narrowClassName);
+
+    uiClearSearchResults();
+    uiLoaderSearchShow();
+    uiLoadingCardShow('store-card');
+
+    Promise.all(requests)
+      .then((allProducts) => {
+        uiClearSearchResults();
+
+        if(allProducts.length === 0) {
+          $modalDialog.addClass(narrowClassName);
+          return actionRenderTemplateNoResults();
+        }
+
+        currentStoresData.map((index, {slug: storeSlug, image, name}) => {
+          const currentStoreProducts = allProducts[index];
+          const limitedStoreProducts = currentStoreProducts.slice(0, storeProductsLimit);
+
+          actionRenderTemplateStoreCard({
+            searchKeyword: currentSearchKeyword,
+            storeSlug,
+            image,
+            name,
+          });
+
+          limitedStoreProducts.map(product => {
+            actionRenderTemplateProductCard({
+              storeSlug,
+              ...product,
+            });
+          });
+        });
+      })
+      .catch(() => uiShowError())
+      .finally(() => uiLoaderSearchHide());
+  };
+  const actionStoreSwitchChange = ({target}) => {
+    const $target = $(target);
+    const isChecked = $target.prop('checked');
+
+    uiResetSearch();
+
+    if (!isChecked) {
+      return $inputSearch
+        .val('')
+        .trigger('keyup')
+        .removeAttr('id');
+    }
+
+    $inputSearch.prop('id', storeSearchIdName);
+    initSearchStore();
+  };
+
+  // UI
+  const uiOverlayShow = () => {
+    $pageOverlay.addClass(activeClassName);
+    $body
+      .addClass(freezePageClassName)
+      .css('overflow-y', 'hidden');
+  };
+  const uiOverlayHide = () => {
+    $pageOverlay.click();
+    setTimeout(() => $modal.modal('hide'), 0);
+  };
+  const uiLoadingCardShow = (loadingCardTypeClassName) => {
+    for (let i = 0; i < amountOfLoadingCards; i++) {
+      const timeoutDuration = i > 0 && 50 * i;
+
+      actionRenderTemplateLoadingCard(loadingCardTypeClassName);
+
+      setTimeout(() => {
+        const $currentCard = $($body.find(loadingCardClassSelector)[i]);
+        const timeoutDuration = i > 0 && 250 * i;
+
+        $currentCard.addClass(animationClassName);
+      }, timeoutDuration);
+    }
+  };
+  const uiLoadingCardHide = () => $(loadingCardClassSelector).remove();
+  const uiClearSearchResults = () => {
+    $inputSearch.removeData(searchFinishedDataName);
+    $modalContainer.html('');
+  };
+  const uiLoaderSearchShow = () => {
+    $modalContainer.addClass(loadingClassName);
+    $spinnerLoaderSearchInput.removeClass(hiddenClassName);
+    $inputSearch.addClass(`${loadingClassName} ${disabledClassName}`);
+    $searchBtn.addClass(disabledClassName);
+  };
+  const uiLoaderSearchHide = () => {
+    $modalContainer.removeClass(loadingClassName);
+    $spinnerLoaderSearchInput.addClass(hiddenClassName);
+    $inputSearch.removeClass(`${loadingClassName} ${disabledClassName}`);
+    $searchBtn.removeClass(disabledClassName);
+  };
+  const uiResetSearch = () => {
+    $inputSearch.val('');
+    uiOverlayHide();
+    uiClearSearchResults();
+  };
+  const uiShowError = () => {
+    common.launchToast();
+    uiResetSearch();
+  };
+
+  // Events
+  $inputSearch.on('focus keydown', actionModalShow);
+  $inputSearch.on('keyup', actionInputKeyup);
+  $window.on('resize', actionModalUpdateCss);
+  $modal.on('show.bs.modal', () => {
+    $inputSearch.addClass(disabledClassName);
+    setTimeout(() => {
+      $body.find('.modal-backdrop')
+        .addClass('global-store-product-search-modal-backdrop');
+    }, 0);
+  });
+  $modal.on('shown.bs.modal', () => {
+    $inputWrapper.addClass(overlayOpenedClassName);
+    $inputSearch.removeClass(disabledClassName);
+  });
+  $modal.on('hide.bs.modal', () => {
+    $searchBtn.removeClass(notAvailableClassName);
+    $inputWrapper.removeClass(overlayOpenedClassName);
+    $inputSearch.addClass(disabledClassName);
+    uiOverlayHide();
+  });
+  $modal.on('hidden.bs.modal', () => $inputSearch.removeClass(disabledClassName));
+  $body.on('click', productsListTriggerClassSelector, actionProductsListTrigger);
+  $storesSwitch.on('change', actionStoreSwitchChange);
+  $searchBtn.on('click', () => {
+    if (!isModalOpened()) return actionModalShow();
+    if (!isModalOpened()) return actionModalShow();
+    if (!isProductsListVisible()) return actionProductsListTrigger();
+  });
+
+  // Init
+  $modal.modal({
+    show: false,
+    keyboard: false,
+    focus: false,
+  });
+});

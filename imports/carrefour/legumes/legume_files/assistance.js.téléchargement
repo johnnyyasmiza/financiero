@@ -1,0 +1,28 @@
+$(() => {
+  // DOM Elements and DOM Classes
+  const $body = $('body');
+  const $assistance = $('.js-assistance');
+  const $chooseSubject = $assistance.find('.js-choose-subject');
+  const $productIssues = $assistance.find('.js-product-issues');
+  const triggerChatClassSelector = '.js-trigger-chat';
+  const triggerProductIssuesClassSelector = '.js-trigger-product-issues';
+  const hiddenClassName = 'hidden';
+
+  $productIssues.find(triggerChatClassSelector);
+
+  // Actions
+  const actionChatTrigger = () => {
+    $('.ct-content').click();
+  };
+  const actionProductIssuesTrigger = () => {
+    $productIssues
+      .removeClass(hiddenClassName)
+      .hide();
+
+    $chooseSubject.fadeOut(() => $productIssues.fadeIn());
+  };
+
+  // Events
+  $body.on('click', triggerChatClassSelector, actionChatTrigger);
+  $assistance.on('click', triggerProductIssuesClassSelector, actionProductIssuesTrigger);
+});

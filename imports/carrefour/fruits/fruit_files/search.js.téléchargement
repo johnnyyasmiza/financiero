@@ -1,0 +1,146 @@
+function debounce(func, wait, immediate) {
+    var timeout;
+    return function () {
+        var context = this, args = arguments;
+        var later = function () {
+            timeout = null;
+            if (!immediate) func.apply(context, args);
+        };
+        var callNow = immediate && !timeout;
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+        if (callNow) func.apply(context, args);
+    };
+};
+
+var srcFocusCount = 0;
+var srcMouseCount = 0;
+
+$('#hsearch_inp').on('focus', function () {
+    srcFocusCount = 1;
+}).on('blur', function () {
+    // input focusout & mouse out => class off
+    srcFocusCount = 0;
+    if (srcMouseCount == 0) bodyOvlOff();
+});
+
+$('.js_src_ovl').on('mouseenter', function () {
+    srcMouseCount = 1;
+    bodyOvlOn();
+}).on('mouseleave', function () {
+    // mouuseleave only on focusout => class off
+    srcMouseCount = 0;
+    if (srcFocusCount == 0) bodyOvlOff();
+});
+
+function bodyOvlOn() {
+    $('header ~ *:not(script)').addClass('header_cover');
+    $('body').addClass('of-h');
+    $('.js_search_results').addClass('active');
+}
+
+function bodyOvlOff() {
+    $('header ~ *:not(script)').removeClass('header_cover');
+    $('body').removeClass('of-h');
+    $('.js_search_results').removeClass('active');
+}
+
+// Product search
+(($) => {
+    const consturctorioSuggestionNumberOfProducts = 10;
+    const debounceDuration = 500;
+    const hiddenClassName = 'hidden';
+    const $spinnerLoaderSearchInput = $('.js-spinner-loader-big-input');
+    const $bigSearchResults = $('.js-big-search-results');
+    const $templateBigSearchResults = $('script#js-big-search-results-template');
+    const $templateBigSearchNoResults = $('script#js-big-search-no-results-template');
+
+    $(document).on('keyup', '#hsearch_inp', debounce(({target}) => {
+        const $target = $(target);
+        const {locale, storeSlug, storeId} = $target.data();
+
+        const searchValue = $target.val();
+        const requestUrl = $('#big_search_form').data('action') + '?criteria[search][value]=' + encodeURIComponent(searchValue);
+
+        if (searchValue.length < 2) return;
+
+        $spinnerLoaderSearchInput.removeClass(hiddenClassName);
+
+        // Big search data layer push
+        window.dataLayer.push({
+            event: 'search',
+            search_term: searchValue,
+        });
+
+        // Disable old ajax search
+        // $('.big-search-results').load(requestUrl, () => {
+        //     $spinnerLoaderSearchInput.addClass(hiddenClassName);
+        // });
+
+        // Constructor.io search
+        constructorio.autocomplete.getAutocompleteResults(searchValue, {
+            resultsPerSection: {
+                SearchSuggestions: consturctorioSuggestionNumberOfProducts,
+                Products: consturctorioSuggestionNumberOfProducts,
+            },
+            filters: {
+                x_available_store_ids: [storeId.toString()],
+            },
+        })
+            .then(({ sections }) => {
+                const { Products: products } = sections;
+
+                // Create template instance
+                const $renderTemplate = $('<div>').html($templateBigSearchResults.html());
+
+                // Show all results bottom element
+                const $showAllResults = $renderTemplate.find('.js-show-all-results');
+                const $showAllLink = $showAllResults.find('a');
+                const currentHref = $showAllLink.attr('href');
+                $showAllLink.attr('href', `${currentHref}${searchValue}`);
+
+                // Get product list + prototype item
+                const $productList = $renderTemplate.find('.js-product-list');
+                const $productTemplate = $productList.find('.js-product').first();
+
+                $productList.empty();
+                $bigSearchResults.empty()
+
+                if (products.length) {
+                    products.forEach((product) => {
+                        const { value: name, data } = product;
+                        const { id, image_url: image, price, x_slug: slug } = data;
+
+                        const $item = $productTemplate.clone();
+                        const productUrl = `/${locale}/variants/store/${storeSlug}/product/${slug}`;
+
+                        const formattedPrice = (price / 100).toFixed(2);
+
+                        $item.find('.js-product-href').attr('href', productUrl);
+                        $item.find('.js-product-name').text(name);
+                        $item.find('.js-price').text(formattedPrice);
+                        $item.find('.js-product-image')
+                            .attr('src', image)
+                            .attr('alt', name);
+
+                        // Add constructorio requred elements
+                        $item.attr('data-cnstrc-item-name', name);
+                        $item.attr('data-cnstrc-item-id', id);
+
+                        $productList.append($item);
+                    });
+
+                    $bigSearchResults.append($renderTemplate);
+                } else {
+                    $showAllResults.remove();
+                    $bigSearchResults.append($templateBigSearchNoResults.html());
+                }
+
+                $spinnerLoaderSearchInput.addClass(hiddenClassName);
+            })
+            .catch(err => console.error(err))
+            .finally(() => $spinnerLoaderSearchInput.addClass(hiddenClassName));
+    }, debounceDuration));
+})(jQuery);
+
+

@@ -1,0 +1,2161 @@
+$(() => {
+  // Global variables
+  const { api, benefitPageType, translations, benefitsImgPath } = window;
+  const {launchToast, toggleLoader} = common;
+
+  if (!api) return;
+
+  const {
+    apiGwBaseUrl: gwBaseUrl,
+    apiAuthTokenPath: authTokenPath,
+  } = api;
+
+  // Variables, DOM Elements and DOM Classes
+  let authToken = null;
+  const lang = $('html').attr('lang');
+  const hiddenClassName = 'hidden';
+  const selectedClassName = 'selected';
+  const disabledClassName = 'disabled';
+  const activatedClassName = 'activated';
+  const btnPrimaryClassName = 'btn-primary';
+  const btnSecondaryClassName = 'btn-secondary';
+  const benefitsTabButtonAvailableClassName = 'js-benefit-tab-button-available';
+  const benefitsTabButtonOldClassName = 'js-benefit-tab-button-old';
+  const lockedClassName = 'locked';
+  const cursorPointerClassName = 'cursor-pointer';
+  const offerDataName = 'offerData';
+  const messageDataName = 'messageData';
+  const downloadDataName = 'download';
+  const downloadWinnersDataName = 'download-winners';
+  const codeDataName = 'codeData';
+  const donationPointsPlaceholderDataName = 'donation-points-placeholder';
+  const modalTargetData = 'modal-target';
+  const pointsSliderClassSelector = '.js-points-slider';
+  const pointsSliderModalClassSelector = '.js-points-slider-modal';
+  const pointsValueClassSelector = '.js-points-value';
+  const modalBodyClassSelector = '.js-modal-body';
+  const rowClassSelector = '.js-row';
+  const rowLoadingClassSelector = '.js-loading-row';
+  const priceInPointsClassSelector = '.js-price-in-points';
+  const qtyClassSelector = '.js-qty';
+  const accumulatedClassSelector = '.js-accumulated';
+  const valueClassSelector = '.js-value';
+  const vendorImageClassSelector = '.js-vendor-image';
+  const vendorNameClassSelector = '.js-vendor-name';
+  const offerImageClassSelector = '.js-offer-image';
+  const offerTitleClassSelector = '.js-offer-title';
+  const offerDetailsClassSelector = '.js-offer-details';
+  const offerDescriptionClassSelector = '.js-offer-description';
+  const benefitsTabButtonsClassSelector = '.js-benefits-tab-buttons';
+  const birthdayModalBodyClassSelector = '.js-birthday-body';
+  const benefitsTabAllButtonsSelector = `${benefitsTabButtonsClassSelector} button`;
+  const benefitsTabButtonAvailableClassSelector = `.${benefitsTabButtonAvailableClassName}`;
+  const benefitsTabButtonOldClassSelector = `.${benefitsTabButtonOldClassName}`;
+  const generateOfferBtnClassSelector = '.js-generate-offer-btn';
+  const joinRaffleBtnClassSelector = '.js-join-raffle-btn';
+  const donateButtonClassSelector = '.js-donate-btn';
+  const donateConfirmButtonClassSelector = '.js-donate-confirm-btn';
+  const modalGenerateOfferTriggerClassName = 'js-modal-generate-offer-trigger';
+  const modalGenerateOfferTriggerClassSelector = `.${modalGenerateOfferTriggerClassName}`;
+  const modalDonatePointsTriggerClassSelector = '.js-modal-donate-points-trigger';
+  const modalJoinRaffleClassSelector = '.js-modal-join-raffle-trigger';
+  const modalOldOfferDetailsTriggerClassName = 'js-modal-old-offer-details-trigger';
+  const modalOldOfferDetailsTriggerClassSelector = `.${modalOldOfferDetailsTriggerClassName}`;
+  const offerImageModalClassSelector = '.js-offer-image-modal';
+  const availabilityClassSelector = '.js-availability-until';
+  const nextLevelClassSelector = '.js-next-level';
+  const nextLevelBadgeImageClassSelector = '.js-next-level-badge-image';
+  const cardOfferClassName = 'js-card-offer';
+  const cardOfferClassSelector = `.${cardOfferClassName}`;
+  const voucherCardClassSelector = '.js-voucher-card';
+  const cardGoodDeedsClassSelector = '.js-card-your-good-deeds';
+  const lockedButtonClassSelector = '.js-locked-button';
+  const offerProgressDetailsClassSelector = '.js-offer-progress-details';
+  const pointsDonatedClassSelector = '.js-points-donated';
+  const pointsTargetClassSelector = '.js-points-target';
+  const progressBarClassSelector = '.js-progress-bar';
+  const progressBarContainerClassSelector = '.js-offer-progress';
+  const copyInvitationLinkBtnClassSelector = '.js-copy-invitation-link-btn';
+  const invitationShareBtnClassSelector = '.js-share-invitation-btn';
+  const raffleRegulationDownloadBtnClassSelector = '.js-raffle-regulation-download-btn';
+  const raffleWinnersDownloadBtnClassSelector = '.js-raffle-winners-download-btn';
+  const stepsContainerClassSelector = '.js-steps-container';
+  const stepBarPassedClassSelector = '.js-step-bar-passed';
+  const birthdayInputClassSelector = '.js-birthday-input';
+  const birthDayAddConfirmBtnClassSelector = '.js-birthday-add-confirm-btn';
+  const birthDaySuccessConfirmBtnClassSelector = '.js-birthday-success-confirm-btn';
+  const progressIconUnlockClassSelector = '.js-progress-icon-unlock';
+  const cartAddVoucherBtnClassSelector = '.js-cart-add-loyalty-voucher-btn';
+  const statusClassSelector = '.js-status';
+  const promoCodeWrapperClassSelector = '.js-promo-code-wrapper';
+  const codeCopyClassSelector = '.js-code-copy';
+  const goodDeedsDetailsClassSelector = '.js-good-deeds-details';
+  const experienceDetailsClassSelector = '.js-experience-details';
+  const raffleWinnersClassSelector = '.js-raffle-winners';
+  const raffleStartClassSelector = '.js-raffle-start';
+  const raffleEndClassSelector = '.js-raffle-end';
+  const benefitsSeparatorClassSelector = '.js-benefits-separator';
+  const templateContainerClassSelector = '.js-template-container';
+  const $benefitsPage = $('.js-benefits-page');
+  const $clientLevel = $('.js-client-level');
+  const $availablePoints = $('.js-available-points');
+  const $allTimePoints = $('.js-all-time-points');
+  const $pointsReqNextBadge = $('.js-points-req-next-badge');
+  const $expiringDatePoints = $('.js-expiring-date-points');
+  const $pointsLoading = $('.js-points-loading');
+  const $points = $('.js-points');
+  const $progressBar = $(progressBarClassSelector);
+  const $badgeCurrent = $('.js-badge-current');
+  const $badgeNext = $('.js-badge-next');
+  const $economyBoxLoading = $('.js-economy-box-loading');
+  const $economyBox = $('.js-economy-box');
+  const $economyBoxMoneyValue = $('.js-economy-box-money-value');
+  const $economyBoxWeightValue = $('.js-economy-box-weight-value');
+  const $economyBoxDaysValue = $('.js-economy-box-days-value');
+  const $economyBoxBottlesValue = $('.js-economy-bottles-value');
+  const $lastAddedBenefits = $('.js-last-added-benefits');
+  const $offersAvailable = $('.js-offer-available');
+  const $offersOld = $('.js-offers-old');
+  const $offersLocked = $('.js-offers-locked');
+  const $yourVouchersLocked = $('.js-your-vouchers-locked');
+  const $benefitsSeparator = $(benefitsSeparatorClassSelector);
+  const $invitationLinkContainer = $('.js-invitation-link-container');
+  const $invitationLinkInput = $('.js-invitation-link-input');
+  const $invitationEmailInput = $('.js-invitation-email-input');
+  const $headerBenefitsPoints = $('.js-header-benefits-points');
+  const $syliusCartPromotionCode = $('#sylius_cart_promotionCoupon');
+  const $templateModalBenefitsCard = $("script#js-modal-your-benefits-card");
+  const $templateBenefitCardImage = $("script#js-benefit-card-image");
+  const $templateOfferCard = $("script#js-offer-card");
+  const $templateGoodDeedsCard = $("script#js-good-deeds-card");
+  const $templateJsRaffleStep = $("script#js-raffle-step");
+  const $templateCartVoucherCard = $("script#js-cart-voucher-card");
+  const $templateNoOffersAvailable = $("script#js-no-offers-available");
+  const $templateLockedBenefits = $("script#js-locked-benefits");
+  const $modalYourBenefits = $('#modalYourBenefits');
+  const $modalGenerateOffer = $('#modalGenerateOffer');
+  const $modalOldOfferDetails = $('#modalOldOfferDetails');
+  const $modalActionSuccessfullyDone = $('#modalActionSuccessfullyDone');
+  const $modalDonatePoints = $('#modalDonatePoints');
+  const $modalDonatePointsConfirmation = $('#modalDonatePointsConfirmation');
+  const $modalBirthdaySuccess = $('#modalAddBirthdaySuccess');
+  const $modalAddBirthDay = $('#modalAddBirthDay');
+  const $modalCartVouchers = $('#modalCartVouchers');
+  const momentDateTimeStamp = 'DD.MM.Y';
+  const momentDateTimeStampShort = 'DD.MM';
+  const benefitsImagesPath = benefitsImgPath || $benefitsPage.data('benefits-images-path');
+  const missingImagePath = `${benefitsImagesPath}/missing_image_placeholder.svg`;
+  const percentageLimit = 100;
+
+  // UI
+  const uiHideLoadingEconomyBoxes = () => $economyBoxLoading.addClass(hiddenClassName);
+  const uiHideLoadingPoints = () => $pointsLoading.addClass(hiddenClassName);
+  const uiShowEconomyBoxes = () => $economyBox.removeClass(hiddenClassName);
+  const uiShowPoints = () => $points.removeClass(hiddenClassName);
+  const uiShowError = (errorText) => launchToast(false, errorText);
+  const uiShowErrorMessage = ({ responseJSON }) => {
+    const {message, errors} = responseJSON;
+
+    const hasMultipleErrors = Array.isArray(errors);
+    const errorMessage = hasMultipleErrors ? errors.join(' ') : message;
+
+    uiShowError(errorMessage);
+  };
+
+  // Settings
+  const pointsSliderSettings = {
+    start: 0,
+    step: 1,
+    connect: [true, false],
+    range: {
+      min: 0,
+      max: 10,
+    },
+  };
+
+  // API
+  const apiLimitQsm = 1001; // CORS issue do not change
+  const apiGwUrl = (path = '', version = 1) => `${gwBaseUrl}/${path}/v${version}/${lang}`;
+  const apiAuthHeader = () => ({
+    headers: {
+      Authorization: authToken,
+    },
+  });
+  const apiRequestAuthToken = () => {
+    if (authToken) return;
+
+    return $.ajax(authTokenPath)
+      .done((authTokenResponse) => {
+        authToken = 'Bearer ' + authTokenResponse;
+      });
+  };
+  const apiRequestGetAvailablePoints = () => {
+    return $.ajax({
+      url: `${apiGwUrl('shop-api', 4)}/customers/available-points?limit=${apiLimitQsm}`,
+      type: 'get',
+      ...apiAuthHeader(),
+    })
+      .then(({
+        pointsForBadge: lifeTimePoints,
+        availablePointsThatWillExpire: expiringPoints,
+        availablePointsFromThisYear,
+        expireDate,
+        totalPointsFromCurrentYear,
+      }) => {
+        const availablePoints = expiringPoints + availablePointsFromThisYear;
+        const expiringDate = moment(expireDate).format(momentDateTimeStamp);
+
+        return {
+          lifeTimePoints,
+          expiringPoints,
+          availablePoints,
+          expiringDate,
+          expirationDateFull: expireDate,
+          allTimePoints: totalPointsFromCurrentYear,
+        };
+      });
+  };
+  const apiRequestGetCustomerBadges = () => {
+    return $.ajax({
+      url: `${apiGwUrl('public', 3)}/customer-badges?web`,
+      type: 'get',
+      ...apiAuthHeader(),
+    })
+      .then(({ _embedded }) => _embedded?.items);
+  };
+  const apiRequestGetCustomerProfile = () => {
+    return $.ajax({
+      url: `${apiGwUrl('hst-api', 4)}/customer-profile`,
+      type: 'get',
+      ...apiAuthHeader(),
+    })
+      .then(({ profile }) => {
+        const {
+          money_saved: money,
+          kilograms_earned: weight,
+          free_time_earned: freeTimeEarned,
+          total_sgr_collected: bottles,
+        } = profile;
+
+        const days = parseFloat(freeTimeEarned / 1440).toFixed(2);
+
+        return {
+          money: money || 0,
+          weight: weight || 0,
+          days: days || 0,
+          bottles: bottles || 0,
+        };
+      });
+  };
+  const apiRequestGetSalablePromotions = () => {
+    return $.ajax({
+      url: `${apiGwUrl('public', 4)}/salable-promotions-with-points?limit=${apiLimitQsm}`,
+      type: 'get',
+      ...apiAuthHeader(),
+    })
+      .then(({ _embedded }) => {
+        const { items } = _embedded;
+
+        return items.map(({id, badges, startsAt, endsAt, translations, images, vendor, priceInPoints, quantityAvailableForSale, maxUsagePerCustomer: userUseLimit, loyaltyType, externalVoucher}) => {
+          const startDate = moment(startsAt).format(momentDateTimeStamp);
+          const expirationDate  = moment(endsAt).format(momentDateTimeStamp);
+          const {
+            id: vendorCode,
+            code: vendorCodeString,
+            name: vendorName,
+            images: vendorImages,
+          } = vendor;
+
+          const name = translations.find(({ locale }) => locale === lang)?.name;
+          const description = translations.find(({ locale }) => locale === lang)?.description;
+          const image = !!images.length ? (getImagePath('large') + '/' + images[0]?.path) : missingImagePath;
+          const vendorImage = getImagePath('small') + '/' + vendorImages[0]?.path;
+
+          return {
+            id,
+            badges,
+            startDate,
+            startDateFull: startsAt,
+            expirationDate,
+            expirationDateFull: endsAt,
+            name,
+            description,
+            image,
+            vendorCode,
+            vendorCodeString,
+            vendorName,
+            vendorImage,
+            priceInPoints,
+            quantityAvailableForSale,
+            userUseLimit,
+            loyaltyType,
+            externalVoucher,
+          };
+        });
+      });
+  };
+  const apiRequestGetSalableProducts = () => {
+    return $.ajax({
+      url: `${apiGwUrl('public', 4)}/salable-products-with-points?limit=${apiLimitQsm}`,
+      type: 'get',
+      ...apiAuthHeader(),
+    })
+      .then(({ _embedded }) => {
+        const { items } = _embedded;
+
+        return items.map(({
+          id,
+          badges,
+          startsAt,
+          endsAt,
+          translations,
+          images,
+          priceInPoints,
+          quantityAvailableForSale,
+          maxUsagePerCustomer: userUseLimit,
+          loyaltyType,
+          quantitySold: pointsDonated,
+          target: pointsTarget,
+          winnersCount,
+          regulationFilePath,
+          winnersFilePath,
+          events: raffleEvents,
+        }) => {
+          const startDate = moment(startsAt).format(momentDateTimeStamp);
+          const expirationDate  = moment(endsAt).format(momentDateTimeStamp);
+          const name = translations.find(({ locale }) => locale === lang)?.name;
+          const description = translations.find(({ locale }) => locale === lang)?.description;
+          const cardImage = images.find(({type}) => type === 'listing_page') || images[0];
+          const image = !!images.length ? (getImagePath('large') + '/' + cardImage.path) : missingImagePath;
+          const hasPointsTarget = pointsTarget > 0;
+          const percentageCalculation = pointsDonated / pointsTarget * percentageLimit;
+          const percentage = Math.min(Math.round(percentageCalculation), percentageLimit);
+          const percentageDonated = hasPointsTarget && Math.round(percentage);
+          const regulationDownloadUrl = `${getImagePath('base')}/${regulationFilePath}`;
+          const winnersFileDownloadUrl = `${getImagePath('base')}/${winnersFilePath}`;
+
+          const events = raffleEvents.map(({date, translations}) => {
+            const eventDate = moment(date);
+            const details = translations.find(({ locale }) => locale === lang)?.name;
+            const isEventPassed = moment().isSameOrAfter(eventDate);
+
+            return {
+              date: eventDate.format(momentDateTimeStampShort),
+              details,
+              isEventPassed,
+            };
+          });
+
+          return {
+            id,
+            badges,
+            startDate,
+            startDateFull: startsAt,
+            expirationDate,
+            expirationDateFull: endsAt,
+            name,
+            description,
+            image,
+            priceInPoints,
+            quantityAvailableForSale,
+            userUseLimit,
+            loyaltyType,
+            pointsDonated,
+            hasPointsTarget,
+            pointsTarget,
+            winnersCount,
+            ...(() => (hasPointsTarget ? { percentageDonated } : {}))(),
+            ...(() => (regulationFilePath ? { regulationDownloadUrl } : {}))(),
+            ...(() => (winnersFilePath ? { winnersFileDownloadUrl } : {}))(),
+            events,
+          };
+        });
+      });
+  };
+  const apiRequestGetPointsSpent = () => {
+    return $.ajax({
+      url: `${apiGwUrl('shop-api', 4)}/customers/points-spent?limit=${apiLimitQsm}`,
+      type: 'get',
+      ...apiAuthHeader(),
+    })
+      .then((response) => {
+        const responseArray = response.map(({promotionId, loyaltyProductId, items}) => {
+          const id = promotionId || loyaltyProductId;
+          const type = (promotionId && 'vouchers') || (loyaltyProductId && 'experiencesAndGoodDeeds');
+
+          const totalPointsSpent = items
+            .map(({points}) => points)
+            .reduce((accumulator, currentValue) => accumulator + currentValue, 0);
+
+          return {
+            id,
+            type,
+            totalPointsSpent,
+            items,
+          };
+        });
+
+        return Object.values(responseArray.reduce((accumulator, item) => {
+          const {id, type, items} = item;
+          const key = `${id}-${type}`;
+
+          accumulator[key] = accumulator[key] || {id, type, items, totalPointsSpent: 0, numberOfAccumulatedPoints: 0};
+
+          accumulator[key].totalPointsSpent += item.totalPointsSpent;
+          accumulator[key].numberOfAccumulatedPoints = ++accumulator[key].numberOfAccumulatedPoints;
+
+          return accumulator;
+        }, {}));
+      });
+  };
+  const apiRequestGetPromotionCoupons = (pageType) => {
+    return $.ajax({
+      url: `${apiGwUrl('shop-api', 4)}/customers/promotion-coupons`,
+      type: 'get',
+      ...apiAuthHeader(),
+    })
+      .then((response) => {
+        const promotionCoupons = pageType ? promotionCouponsSelector(response, pageType) : promotionCouponsSelectorCart(response);
+
+        return promotionCoupons.map(({expiresAt,  promotionCoupon}) => {
+          const {promotion, code} = promotionCoupon;
+          const {images, vendor, translations, externalVoucher} = promotion;
+          const {
+            name: vendorName,
+            images: vendorImages,
+          } = vendor;
+
+          const name = translations.find(({ locale }) => locale === lang)?.name;
+          const description = translations.find(({ locale }) => locale === lang)?.description;
+
+          const image = !!images.length ? (getImagePath('large') + '/' + images[0]?.path) : missingImagePath;
+          const vendorImage = getImagePath('small') + '/' + vendorImages[0]?.path;
+
+          const expiringDate = moment(expiresAt).format(momentDateTimeStamp);
+
+          return {
+            expiringDate,
+            expirationDateFull: expiresAt,
+            image,
+            name,
+            description,
+            vendorImage,
+            vendorName,
+            code,
+            externalVoucher,
+          };
+        });
+      });
+  };
+  const apiRequestBuyPromotion = (offerId) => {
+    return $.ajax({
+      url: `${apiGwUrl('shop-api', 4)}/customers/buy-promotion-with-points/${offerId}`,
+      type: 'post',
+      ...apiAuthHeader(),
+    });
+  };
+  const apiRequestBuyProduct = (offerId, quantity) => {
+    return $.ajax({
+      url: `${apiGwUrl('shop-api', 4)}/customers/buy-product-with-points/${offerId}`,
+      type: 'post',
+      ...apiAuthHeader(),
+      ...(() => (quantity ? { data: {quantity} } : {}))(),
+    });
+  };
+  const apiRequestGenerateInvitation = () => {
+    return $.ajax({
+      url: `${apiGwUrl('shop-api', 3)}/customers/referral/create`,
+      type: 'post',
+      ...apiAuthHeader(),
+    });
+  };
+  const apiRequestUpdateCustomerProfile = (data) => {
+    return $.ajax({
+      url: `${apiGwUrl('shop-api', 3)}/customers/profile`,
+      type: 'post',
+      data,
+      ...apiAuthHeader(),
+    });
+  };
+  const apiRequestGetLoyaltyTypes = () => {
+    return $.ajax({
+      url: `${apiGwUrl('public', 3)}/loyalty-types?limit=${apiLimitQsm}`,
+      type: 'get',
+      ...apiAuthHeader(),
+    })
+      .then(({ _embedded }) => _embedded?.items);
+  };
+  const apiRequestGetAvailableStores = (latitude, longitude) => {
+    return $.ajax({
+      url: `${apiGwUrl('public', 3)}/stores/available/${latitude}/${longitude}`,
+      type: 'get',
+    });
+  };
+
+  // Selectors
+  const badgesSelector = (badges, userPoints) => {
+    const sortedBadges = badges
+      .sort((a, b) => a.level - b.level)
+      .map(({ minimumPoints, level, translations, iconFilePath }) => ({
+        name: translations.find(({ locale }) => locale === lang)?.description,
+        minimumPoints,
+        level,
+        image: `${getImagePath('base')}/${iconFilePath}`,
+      }));
+
+    const index = sortedBadges.findIndex(badge => userPoints < badge.minimumPoints) - 1;
+    const badgesLength = sortedBadges.length;
+    const lastBadgeMinimumPoints = sortedBadges[badgesLength - 1]?.minimumPoints;
+    const lastBadgeReached = userPoints >= lastBadgeMinimumPoints;
+    const badgeIndex = (lastBadgeReached ? badgesLength - 1 : (index < 0 ? 0 : index));
+
+    const currentAndAllPreviousBadges = sortedBadges.slice(0, badgeIndex + 1);
+    const currentAndFirstAfterBadges = sortedBadges.slice(badgeIndex, badgeIndex + 2);
+    const currentAndAllFollowingBadges = sortedBadges.slice(badgeIndex);
+
+    const currentBadge = currentAndFirstAfterBadges[0];
+    const currentBadgeName = currentBadge.name;
+
+    return {
+      currentAndAllPreviousBadges,
+      currentAndFirstAfterBadges,
+      currentAndAllFollowingBadges,
+      currentBadge,
+      currentBadgeName,
+      lastBadgeReached,
+    };
+  };
+  const salablePromotionsSelector = (items, loyaltyTypeFilter, badgesFilter, strictFilter = false) => {
+    let filteredItems = [];
+
+    if (loyaltyTypeFilter) {
+      filteredItems = items.filter(({loyaltyType}) => loyaltyType === loyaltyTypeFilter);
+    }
+
+    if (badgesFilter) {
+      let filteredItemsByBadges = [];
+      const badgesNameFilter = badgesFilter.map(({name}) => name);
+
+      if (!strictFilter) {
+        badgesNameFilter.map(badgeName => {
+          const currentElement = filteredItems.filter(({badges}) => badges.map(({name}) => name).includes(badgeName));
+
+          filteredItemsByBadges.push(...currentElement);
+        });
+
+        filteredItems = [...new Map(filteredItemsByBadges.map(item => [item.id, item])).values()];
+      } else {
+        filteredItems = filteredItems.filter(({badges}) => {
+          const currentBadgesName = badges.map(({name}) => name);
+
+          return JSON.stringify(currentBadgesName) === JSON.stringify(badgesNameFilter);
+        });
+      }
+    }
+
+    return filteredItems;
+  };
+  const salableProductsSelector = (items, loyaltyTypeFilter, badgesFilter) => {
+    const badgesNameFilter = badgesFilter.map(({name}) => name);
+    const dateNow = moment();
+
+    return items
+      .filter(({ loyaltyType }) => loyaltyType === loyaltyTypeFilter)
+      .map(item => {
+        const {
+          badges,
+          expirationDateFull,
+        } = item;
+
+        const filteredBadges = badges.filter(badge => badgesNameFilter.includes(badge.name));
+        const isExpired = moment(expirationDateFull).isBefore(dateNow);
+
+        const isAvailable = !!filteredBadges.length;
+
+        return {
+          ...item,
+          isExpired,
+          badges: isAvailable ? filteredBadges : badges,
+          isAvailable,
+        };
+      })
+  };
+  const promotionCouponsSelector = (promotions, type) => promotions.filter(({promotionCoupon}) => promotionCoupon?.promotion?.loyaltyType === type);
+  const promotionCouponsSelectorCart = (promotions) => {
+    return promotions.filter(({promotionCoupon}) => {
+      const {used, usageLimit, perCustomerUsageLimit} = promotionCoupon;
+      const isUsed = used >=perCustomerUsageLimit;
+      const isDepleted = used >= usageLimit;
+
+      return !isUsed && !isDepleted
+    });
+  };
+  const birthdayLoyaltyTypesSelector = (items) => {
+    return items
+      .filter(({provider}) => ['birthday_add', 'birthday_present'].includes(provider))
+      .map(({provider, numberOfPoints, badges}) => ({provider, numberOfPoints, badges}))
+  };
+  const sortItemsByTime = (data, newestFirst = false) => {
+    return data
+      .sort((x, y) => newestFirst ? (new Date(y.expiresAt) - new Date(x.expiresAt)) : (new Date(x.expiresAt) - new Date(y.expiresAt)))
+      .map((sortedItem) => {
+        const {expirationDateFull} = sortedItem;
+        const dateNow = moment();
+        const isOfferExpired = moment(expirationDateFull).isBefore(dateNow);
+
+        return {
+          isOfferExpired,
+          ...sortedItem,
+        };
+      })
+      .sort((x, y) => x.isOfferExpired - y.isOfferExpired);
+  };
+
+  // Actions
+  const actionGatherBadgesDetails = async () => {
+    let userLifeTimePoints;
+    let userAvailablePoints;
+    let currentAndAllFollowingBadges;
+    let currentAndAllPreviousBadges;
+    let nextBadgeName;
+    let pointsSpent;
+
+    await apiRequestAuthToken();
+
+    const badges = await apiRequestGetCustomerBadges();
+
+    const { lifeTimePoints, availablePoints } = await apiRequestGetAvailablePoints();
+
+    userLifeTimePoints = lifeTimePoints;
+    userAvailablePoints = availablePoints;
+
+    const {
+      currentAndAllFollowingBadges: selectedCurrentAndAllFollowingBadges,
+      currentAndAllPreviousBadges: selectedCurrentAndPreviousBadges,
+      currentAndFirstAfterBadges,
+    } = badgesSelector(badges, userLifeTimePoints);
+
+    currentAndAllFollowingBadges = selectedCurrentAndAllFollowingBadges;
+    currentAndAllPreviousBadges = selectedCurrentAndPreviousBadges;
+
+    const nextBadge = currentAndFirstAfterBadges[1];
+
+    if (nextBadge) {
+      nextBadgeName = nextBadge.name;
+    }
+
+    pointsSpent = await apiRequestGetPointsSpent();
+
+    // Header update
+    actionPopulateBenefitsHeader(userAvailablePoints);
+
+    return {
+      currentAndAllFollowingBadges,
+      currentAndAllPreviousBadges,
+      nextBadgeName,
+      pointsSpent,
+      userAvailablePoints,
+    };
+  };
+  const actionPopulateEconomyBoxes = (economyBoxes) => {
+    const {
+      money = 0,
+      weight = 0,
+      days = 0,
+      bottles = 0,
+    } = economyBoxes;
+
+    $economyBoxMoneyValue.html(money);
+    $economyBoxWeightValue.html(weight);
+    $economyBoxDaysValue.html(days);
+    $economyBoxBottlesValue.html(bottles);
+  };
+  const actionPopulateLatestBenefitCards = (latestPromotions) => {
+    const $row = $lastAddedBenefits.find(rowClassSelector);
+
+    if (!latestPromotions.length) return;
+
+    $row.html('');
+
+    latestPromotions
+      .slice(0, 4)
+      .map(({ image, name, loyaltyType }) => {
+        const $renderTemplate = $($templateBenefitCardImage.html());
+        const $img = $(`<img src="${image}" alt="${name}"/>`);
+        const $a = $('a', $renderTemplate);
+        const dataHref = loyaltyType === 'your_offers' ? 'href-your-vouchers' : 'href-partner-offers';
+        const url = $a.data(dataHref);
+
+        $a.append($img);
+        $a.attr('href', url);
+
+        $row.append($renderTemplate);
+      });
+  };
+  const actionPopulateAvailableOffers = (data, pointsSpent, pageType, userAvailablePoints) => {
+    $offersAvailable.html('');
+
+    const dataLength = data.length;
+
+    $(benefitsTabButtonsClassSelector).removeClass(hiddenClassName);
+    $(benefitsTabButtonAvailableClassSelector).find('span').html(dataLength);
+    $(rowLoadingClassSelector).addClass(hiddenClassName);
+
+    if (!dataLength) return actionPopulateNoResults();
+
+    data.map(({ id, name, description, priceInPoints, quantityAvailableForSale, image, vendorImage, vendorName, expirationDate, userUseLimit }) => {
+      const $renderTemplate = $($templateOfferCard.html());
+      const hasQtyAvailableForSale = quantityAvailableForSale > 1;
+      const $modalGenerateOfferTrigger = $(modalGenerateOfferTriggerClassSelector, $renderTemplate);
+      const $cardOffer = $(cardOfferClassSelector, $renderTemplate);
+      const $priceInPoints = $(priceInPointsClassSelector, $renderTemplate);
+
+      const {totalPointsSpent = 0} = pointsSpent.find(({id: pointsSpentId}) => id === pointsSpentId) || {};
+      const qtyUsed = totalPointsSpent > 0 ? totalPointsSpent / priceInPoints : 0
+      const hasReachedLimit = qtyUsed === userUseLimit;
+      const qty = `${qtyUsed}/${userUseLimit}${hasQtyAvailableForSale ? ` (${quantityAvailableForSale} ${translations.remaining})` : ''}`;
+
+      $(accumulatedClassSelector, $renderTemplate).remove();
+
+      $(qtyClassSelector, $renderTemplate)
+        .removeClass(hiddenClassName)
+        .find('span')
+        .html(qty);
+
+      $priceInPoints.html(`<strong>-${priceInPoints}</strong> ${translations[priceInPoints === 1 ? 'point' : 'points']}`);
+
+      if (priceInPoints < 1) {
+        $(offerDescriptionClassSelector, $renderTemplate).find('span').html('');
+      }
+
+      if (pageType === 'your_offers' && priceInPoints > userAvailablePoints) {
+        $modalGenerateOfferTrigger.html(`<i class="fa-solid fa-ban mr-2"></i> ${translations.generate}`);
+        $cardOffer.addClass(lockedClassName);
+      }
+
+      if (!hasQtyAvailableForSale) {
+        $(offerDescriptionClassSelector, $renderTemplate).find('span').html('');
+        $cardOffer.addClass(lockedClassName);
+
+        $modalGenerateOfferTrigger.html(`<i class="fa-solid fa-lock mr-2"></i> ${translations.soldOut}`);
+      }
+
+      if (hasReachedLimit) {
+        $cardOffer.addClass(lockedClassName);
+        $modalGenerateOfferTrigger.html(`<i class="fa-solid fa-thermometer-full mr-2"></i> ${translations.limitReached}`);
+      }
+
+      $(offerImageClassSelector, $renderTemplate)
+        .attr('src', image)
+        .attr('alt', name);
+
+      $(vendorImageClassSelector, $renderTemplate)
+        .attr('src', vendorImage)
+        .attr('alt', vendorName);
+
+      $(modalGenerateOfferTriggerClassSelector, $renderTemplate).data(offerDataName, {
+        id,
+        name,
+        description,
+        priceInPoints,
+        image,
+        vendorImage,
+        vendorName,
+        expirationDate,
+        qty,
+        pageType,
+      });
+
+      $(lockedButtonClassSelector, $renderTemplate).remove();
+
+      $offersAvailable.append($renderTemplate);
+    });
+  };
+  const actionPopulateCartVoucherCards = (data) => {
+    const $modalBody = $modalCartVouchers.find(modalBodyClassSelector);
+    const noBenefitVoucherAction = () => uiShowError(translations.noBenefitVouchersAvailable);
+
+    $modalBody.html('');
+
+    const dataLength = data.length;
+    if (!dataLength) return noBenefitVoucherAction();
+
+    const sortedData = sortItemsByTime(data, true);
+
+    const filteredData = sortedData
+      .filter(({isOfferExpired, externalVoucher}) => !isOfferExpired && !externalVoucher)
+      .map((item) => {
+        const {image, name, expiringDate, isOfferExpired, code} = item;
+        const $renderTemplate = $($templateCartVoucherCard.html());
+
+        $renderTemplate.data(codeDataName, code);
+
+        $(offerImageClassSelector, $renderTemplate)
+          .attr('src', image)
+          .attr('alt', name);
+
+        $(offerTitleClassSelector, $renderTemplate).html(name);
+
+        $('.js-expiring-date', $renderTemplate).html(expiringDate);
+        $(statusClassSelector, $renderTemplate).html(isOfferExpired ? translations.expired : translations.valid);
+
+        $modalBody.append($renderTemplate);
+
+        return item;
+    });
+
+    if (!filteredData.length) return noBenefitVoucherAction();
+
+    $modalCartVouchers.modal();
+  };
+  const actionPopulateGeneratedOffers = (data, pageType) => {
+    $offersOld.html('');
+
+    $(benefitsTabButtonsClassSelector).removeClass(hiddenClassName);
+
+    const dataLength = data.length;
+    if (!dataLength) return $(benefitsTabButtonOldClassSelector).remove();
+
+    $(benefitsTabButtonOldClassSelector).find('span').html(dataLength);
+
+    const sortedData = sortItemsByTime(data);
+
+    sortedData.map(({ isOfferExpired, expiringDate, image, name, description, vendorImage, vendorName, code }) => {
+      const $renderTemplate = $($templateOfferCard.html());
+      const $offerDetails = $(offerDescriptionClassSelector, $renderTemplate);
+
+      const offerDetailsClassName = isOfferExpired ? 'black-color' : 'primary-color';
+      const offerDetailsHtml = isOfferExpired ? translations.expired : `<strong>${translations.valid}:</strong> ${expiringDate}`;
+
+      $(cardOfferClassSelector, $renderTemplate)
+        .addClass(`${cursorPointerClassName} ${modalOldOfferDetailsTriggerClassName}`)
+        .data(offerDataName, {
+          isOfferExpired,
+          expiringDate,
+          image,
+          name,
+          description,
+          vendorImage,
+          vendorName,
+          code,
+          pageType,
+        });
+
+      $offerDetails
+        .addClass(offerDetailsClassName)
+        .html(offerDetailsHtml);
+
+      $(offerImageClassSelector, $renderTemplate)
+        .attr('src', image)
+        .attr('alt', name);
+
+      $(vendorImageClassSelector, $renderTemplate)
+        .attr('src', vendorImage)
+        .attr('alt', vendorName);
+
+      $offersOld.append($renderTemplate);
+    });
+  };
+  const actionPopulateYourPrizes = (data, userAvailablePoints, pointsSpent) => {
+    $offersAvailable.html('');
+
+    const dataLength = data.length;
+
+    $(benefitsTabButtonsClassSelector).removeClass(hiddenClassName);
+    $(benefitsTabButtonAvailableClassSelector).find('span').html(dataLength);
+    $(rowLoadingClassSelector).addClass(hiddenClassName);
+
+    if (!dataLength) return actionPopulateNoResults();
+
+    data.map(({id: currentId, startDate, expirationDate, name, description, image, priceInPoints, winnersCount, regulationDownloadUrl, events, isAvailable, userUseLimit}) => {
+      const $renderTemplate = $($templateOfferCard.html());
+      const $joinRaffleBtn = $(modalJoinRaffleClassSelector, $renderTemplate);
+      const $accumulatedPoints = $(accumulatedClassSelector, $renderTemplate);
+
+      $(priceInPointsClassSelector, $renderTemplate).html(`<strong>-${priceInPoints}</strong> ${priceInPoints === 1 ? translations.point : translations.points}`);
+
+      $(offerImageClassSelector, $renderTemplate)
+        .attr('src', image)
+        .attr('alt', name);
+
+      $(vendorImageClassSelector, $renderTemplate).remove();
+
+      if (!isAvailable) {
+        $(cardOfferClassSelector, $renderTemplate).addClass(lockedClassName);
+        $joinRaffleBtn.html(translations.raffleDetails);
+      }
+
+      const numberOfAccumulatedPoints = pointsSpent.find(({id}) =>  currentId === id)?.numberOfAccumulatedPoints;
+      const accumulatedHtml = `${numberOfAccumulatedPoints}/${userUseLimit}`;
+
+      if (numberOfAccumulatedPoints) {
+        $accumulatedPoints
+          .removeClass(hiddenClassName)
+          .find('span')
+          .html(accumulatedHtml);
+      }
+
+      // Btn
+      $joinRaffleBtn.data(offerDataName, {
+        id: currentId,
+        startDate,
+        expirationDate,
+        name,
+        description,
+        image,
+        priceInPoints,
+        winnersCount,
+        regulationDownloadUrl,
+        events,
+      });
+
+      $offersAvailable.append($renderTemplate);
+    });
+  };
+  const actionPopulateGoodDeeds = (data, userAvailablePoints) => {
+    $offersAvailable.html('');
+
+    const dataLength = data.length;
+
+    $(benefitsTabButtonsClassSelector).removeClass(hiddenClassName);
+    $(benefitsTabButtonAvailableClassSelector).find('span').html(dataLength);
+    $(rowLoadingClassSelector).addClass(hiddenClassName);
+
+    if (!dataLength) return actionPopulateNoResults();
+
+    data.map(({id, name, expirationDate, description, image, pointsDonated, hasPointsTarget, pointsTarget, percentageDonated}) => {
+      const $renderTemplate = $($templateGoodDeedsCard.html());
+      const $pointsTarget = $(pointsTargetClassSelector, $renderTemplate);
+
+      $(offerImageClassSelector, $renderTemplate)
+        .attr('src', image)
+        .attr('alt', name);
+
+      $(vendorImageClassSelector, $renderTemplate).remove();
+
+      $(pointsDonatedClassSelector, $renderTemplate).html(pointsDonated);
+
+      if (hasPointsTarget) {
+        $(progressBarClassSelector, $renderTemplate).width(`${percentageDonated}%`);
+        $pointsTarget.html(`/ ${pointsTarget}`);
+      } else {
+        $(progressBarContainerClassSelector, $renderTemplate).remove();
+        $pointsTarget.remove();
+      }
+
+      $(valueClassSelector, $renderTemplate).data(offerDataName, {id});
+
+      $(modalDonatePointsTriggerClassSelector, $renderTemplate).data(offerDataName, {
+        id,
+        name,
+        expirationDate,
+        description,
+        image,
+        pointsDonated,
+        hasPointsTarget,
+        pointsTarget,
+        percentageDonated,
+      });
+
+      $offersAvailable.append($renderTemplate);
+    });
+
+    initPointsSlider(userAvailablePoints);
+  };
+  const actionPopulateEndedOffers = (data, pageType, pointsSpent) => {
+    $offersOld.html('');
+
+    $(benefitsTabButtonsClassSelector).removeClass(hiddenClassName);
+
+    const dataLength = data.length;
+    if (!dataLength) return;
+
+    $(benefitsTabButtonOldClassSelector).find('span').html(dataLength);
+
+    const sortedData = data
+      .sort((x, y) => new Date(y.expirationDateFull) - new Date(x.expirationDateFull));
+
+    sortedData.map(({ id: currentId, image, name, userUseLimit, hasPointsTarget, percentageDonated, pointsTarget, pointsDonated, description, startDate, expirationDate,  winnersCount, regulationDownloadUrl, winnersFileDownloadUrl, events }) => {
+      const $renderTemplate = $($templateOfferCard.html());
+      const $offerDetails = $(offerDescriptionClassSelector, $renderTemplate);
+      const $accumulatedPoints = $(accumulatedClassSelector, $renderTemplate);
+      const $pointsTarget = $(pointsTargetClassSelector, $renderTemplate);
+
+      const offerDataObject = {
+        name,
+        image,
+        description,
+        startDate,
+        expirationDate,
+        hasPointsTarget,
+        percentageDonated,
+        pointsTarget,
+        pointsDonated,
+        pageType,
+      };
+
+      if (pageType === 'experience') {
+        const numberOfAccumulatedPoints = pointsSpent.find(({id}) =>  currentId === id)?.numberOfAccumulatedPoints;
+        const accumulatedHtml = `${numberOfAccumulatedPoints}/${userUseLimit}`;
+
+        if (numberOfAccumulatedPoints) {
+          $accumulatedPoints
+            .removeClass(hiddenClassName)
+            .find('span')
+            .html(accumulatedHtml);
+        }
+
+        Object.assign(offerDataObject, {
+          numberOfAccumulatedPoints,
+          userUseLimit,
+          winnersCount,
+          regulationDownloadUrl,
+          winnersFileDownloadUrl,
+          events,
+        });
+
+        $offerDetails.remove();
+      }
+
+      if (pageType === 'good_deeds') {
+        $offerDetails.addClass('white-bg');
+        $accumulatedPoints.remove();
+
+        $(pointsDonatedClassSelector, $renderTemplate).html(pointsDonated);
+
+        if (hasPointsTarget) {
+          $(progressBarClassSelector, $renderTemplate).width(`${percentageDonated}%`);
+          $pointsTarget.html(`/ ${pointsTarget}`);
+        } else {
+          $(progressBarContainerClassSelector, $renderTemplate).remove();
+          $pointsTarget.remove();
+        }
+      }
+
+      $(cardOfferClassSelector, $renderTemplate)
+        .addClass(`${cursorPointerClassName} ${modalOldOfferDetailsTriggerClassName}`)
+        .data(offerDataName, offerDataObject);
+
+      $(qtyClassSelector, $renderTemplate).remove();
+      $(vendorImageClassSelector, $renderTemplate).remove();
+
+      $(offerImageClassSelector, $renderTemplate)
+        .attr('src', image)
+        .attr('alt', name);
+
+      $offersOld.append($renderTemplate);
+    });
+  };
+  const actionPopulateLockedOffers = (items, loyaltyTypeFilter, badgesFilter) => {
+    $yourVouchersLocked.html('');
+
+    badgesFilter.map((badge, index) => {
+      const {name, image} = badge;
+      const data = salablePromotionsSelector(items, loyaltyTypeFilter, badgesFilter.slice(index), true);
+      const $lockedOffersByBadge = actionPopulateLockedOffersByBadge(data, name);
+      const $renderTemplate = $($templateLockedBenefits.html()).clone();
+
+      $renderTemplate.find(benefitsSeparatorClassSelector).removeClass(hiddenClassName);
+      $renderTemplate.find(templateContainerClassSelector).append($lockedOffersByBadge);
+
+      // Inject content
+      $renderTemplate.find(nextLevelClassSelector).text(name);
+      $renderTemplate.find(nextLevelBadgeImageClassSelector)
+        .attr('src', image)
+        .attr('alt', `Locked badge level ${name}`);
+
+      $yourVouchersLocked.append($renderTemplate);
+    });
+  };
+  const actionPopulateLockedOffersByBadge = (data, badgeName) => {
+    return data.map(({id, priceInPoints, image, name, description, vendorImage, vendorName, expirationDate}) => {
+      const $renderTemplate = $($templateOfferCard.html());
+
+      $(priceInPointsClassSelector, $renderTemplate).html(`<strong>-${priceInPoints}</strong> ${priceInPoints === 1 ? translations.point : translations.points}`);
+
+      $(cardOfferClassSelector, $renderTemplate).addClass(lockedClassName);
+
+      $(offerImageClassSelector, $renderTemplate)
+        .attr('src', image)
+        .attr('alt', name);
+
+      $(vendorImageClassSelector, $renderTemplate)
+        .attr('src', vendorImage)
+        .attr('alt', vendorName);
+
+      $(modalGenerateOfferTriggerClassSelector, $renderTemplate).data(offerDataName, {
+        id,
+        name,
+        description,
+        priceInPoints,
+        image,
+        vendorImage,
+        vendorName,
+        expirationDate,
+      });
+
+      $(lockedButtonClassSelector, $renderTemplate).removeClass(hiddenClassName).find('span').html(badgeName);
+
+      $(modalGenerateOfferTriggerClassSelector, $renderTemplate)[0].remove();
+
+      return $renderTemplate;
+    });
+  };
+  const actionPopulateClientTitle = ({ name, image }) => {
+    $clientLevel.find('img').attr('src', image).attr('alt', `User Current level ${name}`);
+    $clientLevel.find('span').html(name);
+    $clientLevel.removeClass(hiddenClassName);
+  };
+  const actionPopulatePointsProgress = (userPoints, currentAndFirstAfterBadges, userLastBadgeReached
+) => {
+    const currentBadge = currentAndFirstAfterBadges[0];
+    $badgeCurrent.html(currentBadge.name);
+
+    if (userLastBadgeReached) {
+      $benefitsPage.find(progressIconUnlockClassSelector).addClass(hiddenClassName);
+
+      return $('.js-bringo-you-badge-details').remove();
+    }
+
+    const nextBadge = currentAndFirstAfterBadges[1];
+
+    const badgePoints = nextBadge.minimumPoints;
+    const pointsNextBadge = badgePoints - userPoints;
+
+    $badgeNext.html(nextBadge.name);
+
+    $pointsReqNextBadge.html(`${pointsNextBadge} ${pointsNextBadge === 1 ? translations.point : translations.points}`);
+  };
+  const actionPopulateBadgesStepsModal = (badgesModal) => {
+    badgesModal.map(({idName, name, isActive, tags, image }) => {
+      const $renderTemplate = $($templateModalBenefitsCard.html());
+      const $availableBenefitTemplate = $('.js-available-benefit', $renderTemplate).first();
+
+      const badgeImgClassName = '.js-badge-img';
+      const badgeTypeClassName = '.js-badge-type';
+      const titleClassName = '.js-title';
+      const $badgeImg = $(badgeImgClassName, $renderTemplate);
+
+      const $badgeTypeBadgeContainer = $('.js-badge-container', $renderTemplate).find(badgeTypeClassName);
+
+      const uiTitleVisibilitySelector = (element1, element2) => {
+        $(`${titleClassName}-${element1}`, $renderTemplate).removeClass(hiddenClassName);
+        $(`${titleClassName}-${element2}`, $renderTemplate).remove();
+      };
+
+      $badgeImg
+        .attr('src', image)
+        .attr('alt', `Level ${name} Badge Image`);
+
+      if (isActive) {
+        $('.js-benefit-card-modal', $renderTemplate).addClass(selectedClassName);
+
+        uiTitleVisibilitySelector(1, 2);
+
+        $badgeTypeBadgeContainer
+          .addClass(idName)
+          .html(name)
+          .removeClass(hiddenClassName);
+      }
+      else {
+        uiTitleVisibilitySelector(2, 1);
+
+        $badgeTypeBadgeContainer.remove();
+      }
+
+      tags.map(tag => {
+        const $availableBenefitTemplateClone = $availableBenefitTemplate.clone();
+        const $badgeType = $(badgeTypeClassName, $availableBenefitTemplateClone);
+        const $icon = $('.js-icon', $availableBenefitTemplateClone);
+
+        $('.js-tag', $availableBenefitTemplateClone).html(tag);
+
+        if (isActive) {
+          $icon.removeClass(hiddenClassName);
+          $badgeType.remove();
+        }
+        else {
+          $icon.remove();
+          $badgeType
+            .remove(hiddenClassName)
+            .addClass(idName)
+            .html(name);
+        }
+
+        $('.js-available-benefits-list', $renderTemplate).append($availableBenefitTemplateClone);
+      });
+
+      $modalYourBenefits
+        .find(modalBodyClassSelector)
+        .find(rowClassSelector)
+        .append($renderTemplate);
+    });
+  };
+  const actionPopulateModalGenerateOffer = ({target}) => {
+    const $target = $(target);
+    const isButton = $target.is('button');
+
+    if (!isButton) return;
+
+    const modalId = $target.data(modalTargetData);
+    const $modal = $(modalId);
+    const offerData = $target.data(offerDataName);
+
+    const {
+      id,
+      name,
+      description,
+      priceInPoints,
+      image,
+      vendorImage,
+      vendorName,
+      expirationDate,
+      qty,
+      pageType,
+    } = offerData;
+
+    const $description = $(offerDescriptionClassSelector, $modal);
+
+    if (description) {
+      $description
+        .removeClass(hiddenClassName)
+        .html(description);
+    } else {
+      $description.addClass(hiddenClassName);
+    }
+
+    $(accumulatedClassSelector, $modal).remove();
+
+    $(qtyClassSelector, $modal)
+      .removeClass(hiddenClassName)
+      .find('span')
+      .html(qty);
+
+    $(modalGenerateOfferTriggerClassSelector).addClass(disabledClassName);
+
+    $(priceInPointsClassSelector, $modal).html(`<strong>-${priceInPoints}</strong> ${translations[priceInPoints === 1 ? 'point' : 'points']}`);
+
+    $(offerTitleClassSelector, $modal).html(name);
+    $(offerImageModalClassSelector, $modal).attr('src', image).attr('alt', name);
+    $(availabilityClassSelector, $modal).html(expirationDate);
+    $(vendorNameClassSelector, $modal).html(vendorName);
+    $(vendorImageClassSelector, $modal).attr('src', vendorImage).attr('alt', vendorName);
+    $(generateOfferBtnClassSelector, $modal).data(offerDataName, { id, pageType });
+
+    $modal.modal();
+
+    setTimeout(() => {
+      $(modalGenerateOfferTriggerClassSelector).removeClass(disabledClassName);
+    }, 1);
+  };
+  const actionPopulateModalDonatePoints = ({target}) => {
+    const $target = $(target);
+    const modalId = $target.data(modalTargetData);
+    const $modal = $(modalId);
+    const $pointsTarget = $(pointsTargetClassSelector, $modal);
+    const $progressBarContainer = $(progressBarContainerClassSelector, $modal);
+
+    const offerData = $target.data(offerDataName);
+    const {
+      id,
+      name,
+      expirationDate,
+      description,
+      image,
+      pointsDonated,
+      hasPointsTarget,
+      pointsTarget,
+      percentageDonated,
+    } = offerData;
+
+    const sliderValue = parseInt($target.prev().find(valueClassSelector).html());
+
+    const $description = $(offerDescriptionClassSelector, $modal);
+
+    if (description) {
+      $description
+        .removeClass(hiddenClassName)
+        .html(description);
+    } else {
+      $description.addClass(hiddenClassName);
+    }
+
+    $(offerTitleClassSelector, $modal).html(name);
+    $(offerImageModalClassSelector, $modal).attr('src', image).attr('alt', name);
+    $(availabilityClassSelector, $modal).html(expirationDate);
+    $(pointsDonatedClassSelector, $modal).html(pointsDonated);
+
+    if (hasPointsTarget) {
+      $(progressBarClassSelector, $modal).width(`${percentageDonated}%`);
+
+      $progressBarContainer.removeClass(hiddenClassName);
+      $pointsTarget
+        .removeClass(hiddenClassName)
+        .html(`/ ${pointsTarget}`);
+    } else {
+      $progressBarContainer.addClass(hiddenClassName);
+      $pointsTarget.addClass(hiddenClassName);
+    }
+
+    $(donateButtonClassSelector, $modal).data(offerDataName, {id});
+
+    // Set slider to current value
+    $(pointsSliderModalClassSelector, $modal)[0].noUiSlider.set(sliderValue);
+
+    $modal.modal();
+  };
+  const actionPopulateModalJoinRaffle = ({target}) => {
+    const $target = $(target);
+    const modalId = $target.data(modalTargetData);
+    const $modal = $(modalId);
+    const offerData = $target.data(offerDataName);
+    const $raffleWinners = $(raffleWinnersClassSelector, $modal);
+
+    const {
+      id,
+      startDate,
+      expirationDate,
+      name,
+      description,
+      image,
+      priceInPoints,
+      winnersCount,
+      regulationDownloadUrl,
+      events,
+    } = offerData;
+
+    const $description = $(offerDescriptionClassSelector, $modal);
+
+    if (description) {
+      $description
+        .removeClass(hiddenClassName)
+        .html(description);
+    } else {
+      $description.addClass(hiddenClassName);
+    }
+
+    $(priceInPointsClassSelector, $modal).html(`<strong>-${priceInPoints}</strong> ${priceInPoints === 1 ? translations.point : translations.points}`);
+
+    $(offerTitleClassSelector, $modal).html(name);
+    $(offerImageModalClassSelector, $modal).attr('src', image).attr('alt', name);
+
+    $(raffleStartClassSelector, $modal).html(startDate);
+    $(raffleEndClassSelector, $modal).html(expirationDate);
+
+    if (winnersCount > 0) {
+      $raffleWinners
+        .html(`${winnersCount} ${translations[winnersCount === 1 ? 'winner' : 'winners']}`)
+        .parent()
+        .removeClass(hiddenClassName)
+    } else {
+      $raffleWinners.parent().addClass(hiddenClassName);
+    }
+
+    if (regulationDownloadUrl) {
+      $modal.data(downloadDataName, regulationDownloadUrl);
+      $(raffleRegulationDownloadBtnClassSelector, $modal).removeClass(hiddenClassName);
+    } else {
+      $raffleWinners.parent().addClass(hiddenClassName);
+    }
+
+    // Contest events modal
+    const eventsNumber = events.length;
+    const stepWidth = (100 / eventsNumber).toFixed(2);
+    const numberOfStepsPassed = events.filter(item => item.isEventPassed).length;
+    const passedStepsWidth = numberOfStepsPassed * stepWidth;
+
+    $(stepsContainerClassSelector, $modal).html('');
+
+    events.map(({date, details, isEventPassed}) => {
+      const $stepTemplate = $($templateJsRaffleStep.html());
+
+      $stepTemplate.width(`${stepWidth}%`);
+      $(stepBarPassedClassSelector, $modal).width(`${passedStepsWidth}%`);
+
+      $('.js-step-date', $stepTemplate).html(date);
+      $('.js-step-description', $stepTemplate).html(details);
+
+      if (isEventPassed) {
+        $stepTemplate.addClass(activatedClassName);
+      }
+
+      $(stepsContainerClassSelector, $modal).append($stepTemplate);
+    });
+
+    $(joinRaffleBtnClassSelector, $modal).data(offerDataName, { id });
+
+    $modal.modal();
+  };
+  const actionPopulateModalOldOfferDetails = ({target}) => {
+    const $target = $(target);
+    const $cardBtn = $target.hasClass(modalOldOfferDetailsTriggerClassName) ? $target : $target.closest(modalOldOfferDetailsTriggerClassSelector);
+    const $modal = $modalOldOfferDetails;
+    const $accumulatedPoints = $(accumulatedClassSelector, $modal);
+    const $promoCodeWrapper = $(promoCodeWrapperClassSelector, $modal);
+    const $goodDeedsDetails = $(goodDeedsDetailsClassSelector, $modal);
+    const $experienceDetails = $(experienceDetailsClassSelector, $modal);
+    const $pointsTarget = $(pointsTargetClassSelector, $modal);
+    const $raffleWinners = $(raffleWinnersClassSelector, $modal);
+    const $raffleWinnersDownloadBtn = $(raffleWinnersDownloadBtnClassSelector, $modal);
+    const offerData = $cardBtn.data(offerDataName);
+
+    const {
+      isOfferExpired,
+      expiringDate,
+      image,
+      name,
+      description,
+      vendorImage,
+      vendorName,
+      code,
+      numberOfAccumulatedPoints,
+      userUseLimit,
+      startDate,
+      expirationDate,
+      hasPointsTarget,
+      percentageDonated,
+      pointsTarget,
+      pointsDonated,
+      winnersCount,
+      regulationDownloadUrl,
+      winnersFileDownloadUrl,
+      events,
+      pageType,
+    } = offerData;
+
+    const $description = $(offerDescriptionClassSelector, $modal);
+
+    if (description) {
+      $description
+        .removeClass(hiddenClassName)
+        .html(description);
+    } else {
+      $description.addClass(hiddenClassName);
+    }
+
+    const showPromoCodeWrapper = pageType === 'your_time' && code;
+
+    if (showPromoCodeWrapper) {
+      $promoCodeWrapper
+        .removeClass(hiddenClassName)
+        .find('.js-code')
+        .text(code);
+
+      $(codeCopyClassSelector, $modal).on('click', () => actionCopyStringToClipboard(code, actionSuccessCopyCallback));
+    }
+
+    if (pageType === 'experience' || pageType === 'good_deeds') {
+      $(offerDetailsClassSelector, $modal).remove();
+    }
+
+    if (pageType === 'experience')  {
+      $accumulatedPoints.addClass(hiddenClassName);
+
+      const accumulatedHtml = `${numberOfAccumulatedPoints}/${userUseLimit}`;
+
+      if (numberOfAccumulatedPoints) {
+        $accumulatedPoints
+          .removeClass(hiddenClassName)
+          .find('span')
+          .html(accumulatedHtml);
+      }
+
+      $(raffleStartClassSelector, $modal).html(startDate);
+      $(raffleEndClassSelector, $modal).html(expirationDate);
+
+      if (winnersCount > 0) {
+        $raffleWinners
+          .html(`${winnersCount} ${translations[winnersCount === 1 ? 'winner' : 'winners']}`)
+          .parent()
+          .removeClass(hiddenClassName);
+      } else {
+        $raffleWinners.parent().addClass(hiddenClassName);
+      }
+
+      if (regulationDownloadUrl) {
+        $modal.data(downloadDataName, regulationDownloadUrl);
+        $(raffleRegulationDownloadBtnClassSelector, $modal).removeClass(hiddenClassName);
+      } else {
+        $raffleWinners.parent().addClass(hiddenClassName);
+      }
+
+      if (winnersFileDownloadUrl) {
+        $modal.data(downloadWinnersDataName, winnersFileDownloadUrl);
+
+        $raffleWinnersDownloadBtn.removeClass(hiddenClassName);
+      } else {
+        $raffleWinnersDownloadBtn.addClass(hiddenClassName);
+      }
+
+      // Contest events modal
+      const eventsNumber = events.length;
+      const stepWidth = (100 / eventsNumber).toFixed(2);
+      const numberOfStepsPassed = events.filter(item => item.isEventPassed).length;
+      const passedStepsWidth = numberOfStepsPassed * stepWidth;
+
+      $(stepsContainerClassSelector, $modal).html('');
+
+      events.map(({date, details, isEventPassed}) => {
+        const $stepTemplate = $($templateJsRaffleStep.html());
+
+        $stepTemplate.width(`${stepWidth}%`);
+        $(stepBarPassedClassSelector, $modal).width(`${passedStepsWidth}%`);
+
+        $('.js-step-date', $stepTemplate).html(date);
+        $('.js-step-description', $stepTemplate).html(details);
+
+        if (isEventPassed) {
+          $stepTemplate.addClass(activatedClassName);
+        }
+
+        $(stepsContainerClassSelector, $modal).append($stepTemplate);
+      });
+
+      $experienceDetails.removeClass(hiddenClassName);
+    } else {
+      $accumulatedPoints.remove();
+      $experienceDetails.remove();
+    }
+
+    if (pageType === 'good_deeds') {
+      $goodDeedsDetails.find(availabilityClassSelector).html(expirationDate);
+
+      $(pointsDonatedClassSelector, $modal).html(pointsDonated);
+
+      if (hasPointsTarget) {
+        $(progressBarClassSelector, $modal).width(`${percentageDonated}%`);
+        $pointsTarget.html(`/ ${pointsTarget}`);
+      } else {
+        $(progressBarContainerClassSelector, $modal).remove();
+        $pointsTarget.remove();
+      }
+
+      $goodDeedsDetails.removeClass(hiddenClassName);
+    } else {
+      $(offerProgressDetailsClassSelector, $modal).remove();
+      $goodDeedsDetails.remove();
+    }
+
+    $(offerTitleClassSelector, $modal).html(name);
+    $(offerImageModalClassSelector, $modal).attr('src', image).attr('alt', name);
+    $(availabilityClassSelector, $modal).html(expiringDate);
+    $(vendorNameClassSelector, $modal).html(vendorName);
+    $(vendorImageClassSelector, $modal).attr('src', vendorImage).attr('alt', vendorName);
+
+    $(statusClassSelector, $modal).html(isOfferExpired ? translations.expired : translations.valid);
+
+    $modal.modal();
+  };
+  const actionCopyStringToClipboard = (textToCopy, callback) => {
+    const legacyMethod = () => {
+      const $temp = $('<input>');
+
+      $body.append($temp);
+      $temp.val(textToCopy).select();
+      document.execCommand('copy');
+      $temp.remove();
+
+      callback();
+    };
+
+    try {
+      navigator.clipboard.writeText(textToCopy)
+        .catch(() => legacyMethod());
+    }
+    catch (e) {
+      legacyMethod();
+    }
+  };
+  const actionPopulateInvitationReferral = ({link, message}) => {
+    $invitationLinkInput.val(link);
+    $body.find(invitationShareBtnClassSelector).data(messageDataName, message);
+
+    $invitationLinkContainer.removeClass(hiddenClassName);
+  };
+  const actionDownloadFile = (fileUrl) => {
+    const match = fileUrl.match(/\/([^\/?#]+)$/);
+    const filename = match ? match[1] : null;
+
+    $.ajax({
+      url: fileUrl,
+      type: 'get',
+      xhrFields: {
+        responseType: 'blob',
+      },
+      success: (blob) => {
+        const link = $('<a>')
+          .attr('href', window.URL.createObjectURL(blob))
+          .attr('download', filename)
+          .get(0);
+
+        link.click();
+      },
+      error: () => window.open(fileUrl, '_blank'),
+    });
+  };
+  const actionSuccessCopyCallback = () => launchToast('success', translations.clipboard_copy_success);
+  const actionCopyInvitationLink = () => {
+    const invitationLink = $invitationLinkInput.val();
+
+    actionCopyStringToClipboard(invitationLink, actionSuccessCopyCallback);
+  };
+  const actionShareInvitationLink = () => {
+    const emailAddress = $invitationEmailInput.val();
+    const message = $body.find(invitationShareBtnClassSelector).data(messageDataName);
+    const subject = translations.invitationLinkSubject;
+
+    window.location.href = `mailto:${emailAddress}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
+  };
+  const actionRaffleDownload = ({target}, isRegulationDownload) => {
+    const $target = $(target);
+    const url = $target.closest('.modal').data(isRegulationDownload ? downloadDataName : downloadWinnersDataName);
+
+    actionDownloadFile(url);
+  };
+  const actionBirthdayAddConfirm = ({target}) => {
+    const $target = $(target);
+    const modalId = $target.data(modalTargetData);
+    const $modal = $(modalId);
+
+    const $birthdayInput = $(birthdayInputClassSelector);
+    const birthdayInputValue = $birthdayInput.val();
+    const birthday = moment(birthdayInputValue, 'DD.MM.YYYY').format('YYYY-MM-DD');
+
+    const hasBirthdayToday = moment(birthday).date() === moment().date() &&
+      moment(birthday).month() === moment().month();
+
+    const $modalBody = $(`${birthdayModalBodyClassSelector}-${hasBirthdayToday ? 2 : 1}`, $modal);
+
+    if (!birthdayInputValue) return;
+
+    $modalBody.removeClass(hiddenClassName)
+    $target.addClass(disabledClassName);
+
+    apiRequestUpdateCustomerProfile({ birthday })
+      .done(() => {
+        $birthdayInput.val('')
+        $modalAddBirthDay.modal('hide');
+        $modalBirthdaySuccess.modal();
+      })
+      .fail(() => uiShowError())
+      .always(() => {
+        $modal.modal('hide');
+        $target.removeClass(disabledClassName);
+      });
+  };
+  const actionBirthdaySuccessConfirm = () => {
+    toggleLoader(true);
+    window.location.reload();
+  };
+  const actionCartVouchers = async (event) => {
+    toggleLoader(true);
+
+    await apiRequestAuthToken();
+
+    await apiRequestGetPromotionCoupons()
+      .then((vouchers) => actionPopulateCartVoucherCards(vouchers))
+      .catch(uiShowErrorMessage)
+      .always(() => toggleLoader());
+  };
+  const actionPopulateAndSubmitVoucherCode = (voucherCode, forceSyliusSaveAction) => {
+    $syliusCartPromotionCode.val(voucherCode);
+    $modalCartVouchers.modal('hide');
+
+    if (forceSyliusSaveAction) return $('#sylius-save').click();
+
+    $('.js-multiple-vouchers').trigger('add-cart-voucher', voucherCode);
+  };
+  const actionCartAddVoucherClick = ({target}) => {
+    const $target = $(target);
+    const $voucherCard = $target.closest(voucherCardClassSelector);
+    const code = $voucherCard.data(codeDataName);
+
+    actionPopulateAndSubmitVoucherCode(code, false);
+  };
+  const actionPopulateBenefitsHeader = (availablePoints) => {
+    if (availablePoints < 1 || !$headerBenefitsPoints.length) return;
+
+    $headerBenefitsPoints
+      .text(availablePoints)
+      .removeClass(hiddenClassName);
+  };
+  const actionPopulateNoResults = () => {
+    const $renderTemplate = $($templateNoOffersAvailable.html());
+
+    $offersAvailable.append($renderTemplate);
+  };
+  const actionInitPageBringoYou = async () => {
+    let nextBadgeMinimumPoints;
+    let userLifeTimePoints;
+    let userAvailablePoints;
+    let userLastBadgeReached;
+
+    await apiRequestAuthToken();
+
+    apiRequestGetCustomerProfile()
+      .then((profile) => {
+        actionPopulateEconomyBoxes(profile);
+      })
+      .catch(actionPopulateEconomyBoxes)
+      .always(() => {
+        uiHideLoadingEconomyBoxes();
+        uiShowEconomyBoxes();
+      });
+
+    apiRequestGetSalablePromotions()
+      .then((promotions) => {
+        const latestPromotions = promotions.sort((a,b) => new Date(b.startDateFull) - new Date(a.startDateFull));
+
+        actionPopulateLatestBenefitCards(latestPromotions);
+      });
+
+    await apiRequestGetAvailablePoints()
+      .then(({lifeTimePoints, availablePoints, expiringDate, allTimePoints}) => {
+        userLifeTimePoints = lifeTimePoints;
+        userAvailablePoints = availablePoints;
+
+        $availablePoints
+          .html(`${userAvailablePoints} ${userAvailablePoints === 1 ? `${translations.point} ${translations.available}` : `${translations.points} ${translations.availablePlural}`}`);
+
+        if (allTimePoints > 0) {
+          $allTimePoints
+            .html(`${translations.untilNowYouAccumulated} ${allTimePoints} ${allTimePoints === 1 ? translations.point : translations.points}.`);
+        }
+
+        $expiringDatePoints.html(expiringDate);
+      });
+
+    await apiRequestGetCustomerBadges()
+      .then((badges) => {
+        const {
+          currentBadge,
+          currentAndFirstAfterBadges,
+          currentBadgeName,
+          lastBadgeReached,
+        } = badgesSelector(badges, userLifeTimePoints);
+
+        userLastBadgeReached = lastBadgeReached;
+
+        if (!userLastBadgeReached) {
+          nextBadgeMinimumPoints = currentAndFirstAfterBadges[1].minimumPoints;
+        }
+
+        const badgesModal = badges.map(({name: idName, translations, tags, iconFilePath}) => {
+          const name = translations.find(({ locale }) => locale === lang)?.description;
+
+          return {
+            idName: idName.toLowerCase(),
+            name,
+            isActive: name === currentBadgeName,
+            tags: tags.map(({ translations }) =>  translations.find(({ locale }) => locale === 'ro')?.name),
+            image: `${getImagePath('base')}/${iconFilePath}`,
+          };
+        });
+
+        actionPopulateClientTitle(currentBadge);
+        actionPopulatePointsProgress(userLifeTimePoints, currentAndFirstAfterBadges, userLastBadgeReached);
+        actionPopulateBadgesStepsModal(badgesModal);
+      });
+
+    // User Bringo You progress bar
+    const progressBarPercentage = userLastBadgeReached ? 100 : ((userLifeTimePoints / nextBadgeMinimumPoints) * percentageLimit).toFixed(2);
+    $progressBar.width(`${progressBarPercentage}%`);
+
+    // Header update
+    actionPopulateBenefitsHeader(userAvailablePoints);
+
+    uiHideLoadingPoints();
+    uiShowPoints();
+  };
+  const actionInitPageYourVouchersAndPartnerOffers = async (pageType) => {
+    await apiRequestAuthToken();
+
+    actionGatherBadgesDetails().then(({
+      currentAndAllFollowingBadges,
+      currentAndAllPreviousBadges,
+      pointsSpent,
+      userAvailablePoints,
+    }) => {
+      apiRequestGetSalablePromotions()
+        .then(async (promotions) => {
+          const allFollowingBadges = currentAndAllFollowingBadges.slice(1);
+          let data = salablePromotionsSelector(promotions, pageType, currentAndAllPreviousBadges);
+
+          if (pageType === 'your_offers') {
+            const {latitude, longitude} = $benefitsPage.data('storeCoordinates');
+
+            await apiRequestGetAvailableStores(latitude, longitude).then(response => {
+              const vendorCodeStrings = response.map(({vendor}) => vendor.code);
+              const uniqueVendorCodeStrings = [...new Set(vendorCodeStrings)];
+
+              data = data.filter(({vendorCodeString}) => uniqueVendorCodeStrings.includes(vendorCodeString));
+            });
+          }
+
+          actionPopulateLockedOffers(promotions, pageType, allFollowingBadges);
+          actionPopulateAvailableOffers(data, pointsSpent, pageType, userAvailablePoints);
+        });
+
+      apiRequestGetPromotionCoupons(pageType)
+        .then((promotions) => actionPopulateGeneratedOffers(promotions, pageType));
+    });
+  };
+  const actionGenerateOffer = ({ target }) => {
+    const $target = $(target);
+    const { id: offerId, pageType } = $target.data(offerDataName);
+
+    $target.addClass(disabledClassName);
+
+    toggleLoader(true);
+
+    apiRequestBuyPromotion(offerId)
+      .done(async () => {
+        await actionInitPageYourVouchersAndPartnerOffers(pageType);
+
+        $modalActionSuccessfullyDone.modal();
+      })
+      .catch((error) => uiShowErrorMessage(error))
+      .always(() => {
+        $modalGenerateOffer.modal('hide');
+        $target.removeClass(disabledClassName);
+        toggleLoader();
+      });
+  };
+  const actionDonate = ({ target }) => {
+    const $target = $(target);
+    const $btn = $target.hasClass(donateButtonClassSelector) ? $target : $target.closest(donateButtonClassSelector);
+    const {id} = $btn.data(offerDataName);
+    const pointsValue = $btn.find(valueClassSelector).text();
+
+    if (pointsValue < 1) return uiShowError();
+
+    const $modalDonatePointsConfirmationBody = $(modalBodyClassSelector, $modalDonatePointsConfirmation);
+    const donationPointsPlaceholder = $modalDonatePointsConfirmationBody.data(donationPointsPlaceholderDataName);
+    const modalTextConfirm = $modalDonatePointsConfirmationBody.text().trim().replace(donationPointsPlaceholder, pointsValue);
+
+    $modalDonatePointsConfirmationBody.html(modalTextConfirm);
+
+    $(donateConfirmButtonClassSelector, $modalDonatePointsConfirmation).data(offerDataName, {id, pointsValue});
+
+    $modalDonatePoints.modal('hide');
+    $modalDonatePointsConfirmation.modal();
+  };
+  const actionJoinRaffle = ({ target }) => {
+    const $target = $(target);
+    const {id} = $target.data(offerDataName);
+
+    $target.addClass(disabledClassName);
+
+    toggleLoader(true);
+
+    apiRequestBuyProduct(id)
+      .done(async () => {
+        await actionInitPageGoodDeedsAndYourPrizes('experience');
+
+        $target.closest('.modal').modal('hide');
+
+        $modalActionSuccessfullyDone.modal();
+      })
+      .catch((error) => uiShowErrorMessage(error))
+      .always(() => {
+        $modalDonatePointsConfirmation.modal('hide');
+        $target.removeClass(disabledClassName);
+        toggleLoader();
+      });
+  };
+  const actionDonateConfirm = ({ target }) => {
+    const $target = $(target);
+    const {id, pointsValue: quantity} = $target.data(offerDataName);
+
+    $target.addClass(disabledClassName);
+
+    toggleLoader(true);
+
+    apiRequestBuyProduct(id, quantity)
+      .done(async () => {
+        destroyPointsSlider();
+
+        await actionInitPageGoodDeedsAndYourPrizes('good_deeds');
+
+        $modalActionSuccessfullyDone.modal();
+      })
+      .catch((error) => uiShowErrorMessage(error))
+      .always(() => {
+        $modalDonatePointsConfirmation.modal('hide');
+        $target.removeClass(disabledClassName);
+        toggleLoader();
+      });
+  };
+  const actionBenefitsTabClicked = ({ target }) => {
+    const $target = $(target);
+
+    if ($target.hasClass('btn-primary')) return;
+
+    const isTabAvailable = $target.hasClass(benefitsTabButtonAvailableClassName);
+    const isTabGenerated = $target.hasClass(benefitsTabButtonOldClassName);
+
+    $(benefitsTabAllButtonsSelector).each((index, element) => {
+      const $element = $(element);
+
+      $element.removeClass(`${btnPrimaryClassName} ${btnSecondaryClassName}`);
+    });
+
+    if (isTabAvailable) {
+      $(benefitsTabButtonAvailableClassSelector).addClass(btnPrimaryClassName);
+      $(benefitsTabButtonOldClassSelector).addClass(btnSecondaryClassName);
+
+      $offersAvailable.removeClass(hiddenClassName);
+
+      if (!!$yourVouchersLocked.html()) {
+        $benefitsSeparator.removeClass(hiddenClassName);
+      }
+
+      $yourVouchersLocked.removeClass(hiddenClassName)
+      $offersOld.addClass(hiddenClassName);
+    }
+
+    if (isTabGenerated) {
+      $(benefitsTabButtonAvailableClassSelector).addClass(btnSecondaryClassName);
+      $(benefitsTabButtonOldClassSelector).addClass(btnPrimaryClassName);
+
+      $offersAvailable.addClass(hiddenClassName);
+      $benefitsSeparator.addClass(hiddenClassName);
+      $yourVouchersLocked.addClass(hiddenClassName)
+      $offersOld.removeClass(hiddenClassName);
+    }
+  };
+  const actionDonateModalClose = ({ target }) => {
+    const $modal = $(target);
+    const $modalBody = $modal.find(modalBodyClassSelector);
+    const currentModalId = $modal.attr('id');
+    const isModalDonatePoints = currentModalId === $modalDonatePoints.attr('id');
+    const $modalPrimaryBtn = $modal.find(isModalDonatePoints ? donateButtonClassSelector : donateConfirmButtonClassSelector);
+    const currentOfferId = $modalPrimaryBtn.data(offerDataName)?.id;
+    const pointsToDonate = isModalDonatePoints ? $modalPrimaryBtn.find(valueClassSelector).text() : $modalPrimaryBtn.data(offerDataName)?.pointsValue;
+
+    if (isModalDonatePoints) {
+      $(valueClassSelector, $benefitsPage).each((index, element) => {
+        const $element = $(element);
+        const offerId = $element.data(offerDataName)?.id;
+
+        if (offerId === currentOfferId) {
+          // Set slider to current value
+          $element.closest(cardGoodDeedsClassSelector).find(pointsSliderClassSelector)[0].noUiSlider.set(pointsToDonate);
+        }
+      });
+    } else {
+      const donationPointsPlaceholder = $modalBody.data(donationPointsPlaceholderDataName);
+      const modalTextConfirm = $modalBody.text().trim().replace(pointsToDonate, donationPointsPlaceholder);
+
+      $modalBody.html(modalTextConfirm);
+    }
+  };
+  const actionCardOfferClick = (event) => {
+    const {target} = event;
+    const $target = $(target);
+    const $cardOffer = $target.hasClass(cardOfferClassName) ? $target : $target.closest(cardOfferClassSelector);
+    const $button = $cardOffer.find('button');
+    const isButton = $target.is('button');
+
+    if (isButton) return;
+
+    $button.click();
+  };
+
+  const actionOldOfferDetailsModalClose = () => $(codeCopyClassSelector).off('click');
+
+  const actionInitPageGoodDeedsAndYourPrizes = async (pageType) => {
+    let pointsSpent;
+
+    await apiRequestAuthToken();
+
+    const actionsPopulate = {
+      good_deeds: actionPopulateGoodDeeds,
+      experience: actionPopulateYourPrizes,
+    };
+
+    pointsSpent = await apiRequestGetPointsSpent();
+
+    actionGatherBadgesDetails().then(({currentAndAllPreviousBadges, userAvailablePoints}) => {
+      apiRequestGetSalableProducts()
+        .then((products) => {
+          const selectedProducts = salableProductsSelector(products, pageType, currentAndAllPreviousBadges);
+
+          const expiredProducts = selectedProducts.filter(({isExpired}) => isExpired);
+          const availableProducts = selectedProducts.filter(({isExpired}) => !isExpired);
+
+          actionsPopulate[pageType](availableProducts, userAvailablePoints, pointsSpent);
+          actionPopulateEndedOffers(expiredProducts, pageType, pointsSpent);
+        });
+    });
+  };
+  const actionInitPageYourFriends = async () => {
+    toggleLoader(true);
+
+    await apiRequestAuthToken();
+
+    apiRequestGenerateInvitation()
+      .then((response) => actionPopulateInvitationReferral(response))
+      .fail(() => uiShowError())
+      .always(() => toggleLoader());
+
+    // Header update
+    const { availablePoints } = await apiRequestGetAvailablePoints();
+    actionPopulateBenefitsHeader(availablePoints);
+  };
+  const actionInitPageSurprises = async () => {
+    const today = moment();
+    const date18YearsAgo = today.subtract(18, 'years');
+    const maxDate = date18YearsAgo.toDate();
+
+    if (!!$(birthdayInputClassSelector).length) {
+      datepicker(birthdayInputClassSelector, {
+        startDate: maxDate,
+        maxDate,
+        formatter: (input, date) => {
+          input.value = moment(date).format(momentDateTimeStamp);
+        },
+      });
+    }
+
+    toggleLoader(true);
+
+    await apiRequestAuthToken();
+
+    apiRequestGetLoyaltyTypes()
+      .then((response) => {
+        const data = birthdayLoyaltyTypesSelector(response);
+
+        const {numberOfPoints} = data.find(({provider}) => provider === 'birthday_add');
+
+        $(pointsValueClassSelector, $modalBirthdaySuccess).html(numberOfPoints);
+      })
+      .fail(() => uiShowError())
+      .always(() => toggleLoader());
+
+    // Header update
+    const { availablePoints } = await apiRequestGetAvailablePoints();
+    actionPopulateBenefitsHeader(availablePoints);
+  };
+  const actionInitNonBenefitPages = async () => {
+    const isUserNotLoggedIn = !parseInt($('#user_is_logged').val());
+
+    if (isUserNotLoggedIn) return;
+
+    await apiRequestAuthToken();
+
+    // Header update
+    const { availablePoints } = await apiRequestGetAvailablePoints();
+    actionPopulateBenefitsHeader(availablePoints);
+  };
+  const actionInitPage = () => {
+    switch (benefitPageType) {
+      case 'bringo-you':
+        actionInitPageBringoYou();
+        break;
+
+      case 'your-vouchers':
+        actionInitPageYourVouchersAndPartnerOffers('your_offers');
+        break;
+
+      case 'partner-offers':
+        actionInitPageYourVouchersAndPartnerOffers('your_time');
+        break;
+
+      case 'your-good-deeds':
+        actionInitPageGoodDeedsAndYourPrizes('good_deeds');
+        break;
+
+      case 'your-surprises':
+        actionInitPageSurprises();
+        break;
+
+      case 'your-prizes':
+        actionInitPageGoodDeedsAndYourPrizes('experience');
+        break;
+
+      case 'your-friends':
+        actionInitPageYourFriends();
+        break;
+
+      default:
+        actionInitNonBenefitPages();
+        break;
+    }
+  };
+
+  // Events
+  $benefitsPage.on('click', modalGenerateOfferTriggerClassSelector, actionPopulateModalGenerateOffer);
+  $benefitsPage.on('click', modalDonatePointsTriggerClassSelector, actionPopulateModalDonatePoints);
+  $benefitsPage.on('click', modalJoinRaffleClassSelector, actionPopulateModalJoinRaffle);
+  $benefitsPage.on('click', modalOldOfferDetailsTriggerClassSelector, actionPopulateModalOldOfferDetails);
+  $benefitsPage.on('click', generateOfferBtnClassSelector, actionGenerateOffer);
+  $benefitsPage.on('click', donateButtonClassSelector, actionDonate);
+  $benefitsPage.on('click', joinRaffleBtnClassSelector, actionJoinRaffle);
+  $benefitsPage.on('click', donateConfirmButtonClassSelector, actionDonateConfirm);
+  $benefitsPage.on('click', benefitsTabAllButtonsSelector, actionBenefitsTabClicked);
+  $benefitsPage.on('click', copyInvitationLinkBtnClassSelector, actionCopyInvitationLink);
+  $benefitsPage.on('click', invitationShareBtnClassSelector, actionShareInvitationLink);
+  $benefitsPage.on('click', raffleRegulationDownloadBtnClassSelector, (event) => actionRaffleDownload(event, true));
+  $benefitsPage.on('click', raffleWinnersDownloadBtnClassSelector, actionRaffleDownload);
+  $benefitsPage.on('click', birthDayAddConfirmBtnClassSelector, actionBirthdayAddConfirm);
+  $benefitsPage.on('click', birthDaySuccessConfirmBtnClassSelector, actionBirthdaySuccessConfirm);
+  $benefitsPage.on('click', cardOfferClassSelector, actionCardOfferClick);
+  $body.on('click', cartAddVoucherBtnClassSelector, actionCartVouchers);
+  $body.on('click', voucherCardClassSelector, actionCartAddVoucherClick);
+  $modalDonatePoints.on('hidden.bs.modal', actionDonateModalClose);
+  $modalOldOfferDetails.on('hidden.bs.modal', actionOldOfferDetailsModalClose);
+  $modalDonatePointsConfirmation.on('hidden.bs.modal', actionDonateModalClose);
+
+  // Init
+  actionInitPage();
+
+  // Points slider init
+  const initPointsSlider = (givenValue) => {
+    $body.find(pointsSliderClassSelector).each((index, slider) => {
+      const currentSlider = $(slider)[0];
+      const $currentSlider = $(currentSlider);
+
+      const $currentPointsDonation = $currentSlider.parent()
+        .parent()
+        .find(pointsValueClassSelector);
+
+      // Points Slider Max Value
+      pointsSliderSettings.range.max = givenValue;
+
+      noUiSlider.create(currentSlider, pointsSliderSettings);
+
+      if (!givenValue) {
+        $currentSlider.addClass(disabledClassName);
+      }
+
+      currentSlider.noUiSlider.on('update', (values) => {
+        const value = parseInt(values.shift());
+        const valueText = value === 1 ? translations.point : translations.points;
+
+        $currentPointsDonation
+          .find('.js-value-text')
+          .html(valueText);
+
+        $currentPointsDonation
+          .find(valueClassSelector)
+          .html(value);
+
+        if ($currentPointsDonation.hasClass('js-points-value-modal')) {
+          const updatedHtml = $currentPointsDonation.html()
+            .trim()
+            .replace(/%points%/g, givenValue);
+
+          $currentPointsDonation.html(updatedHtml);
+        }
+      });
+    });
+  };
+  const destroyPointsSlider = () => {
+    $body.find(pointsSliderClassSelector).each((index, slider) => {
+      const currentSlider = $(slider)[0];
+
+      currentSlider.noUiSlider?.destroy();
+    });
+  };
+});

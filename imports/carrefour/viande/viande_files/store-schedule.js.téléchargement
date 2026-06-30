@@ -1,0 +1,12 @@
+$(() => {
+  // DOM Elements and DOM Classes
+  const $modalBtnTrigger = $('.js-store-schedule-modal-button');
+  const modalClassSelector = '.js-store-schedule-modal';
+  const $modal = $(modalClassSelector);
+
+  // Actions
+  const actionOpenModal = () => $modal.modal();
+
+  // Events
+  $modalBtnTrigger.on('click', actionOpenModal);
+});

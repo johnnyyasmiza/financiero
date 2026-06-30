@@ -1,0 +1,346 @@
+const common = function () {
+    (() => {
+        const cookieSettingsClassSelector = $('.js-cookie-settings');
+        const $cookieSettings = cookieSettingsClassSelector[0];
+
+        if (!$cookieSettings) return;
+
+        const isModifiedClassSelector = 'js-is-modified';
+
+        if ($cookieSettings.length) {
+            const cookieSettingsInitialHtml = $cookieSettings.innerHTML;
+            const observer = new MutationObserver((mutationsList) => {
+                for (const mutation of mutationsList) {
+                    if (mutation.type === 'childList' || mutation.type === 'characterData') {
+                        if (
+                            cookieSettingsInitialHtml !== $cookieSettings.innerHTML &&
+                            !$cookieSettings.classList.contains(isModifiedClassSelector)
+                        ) {
+                            $cookieSettings.classList.add(isModifiedClassSelector);
+                            $cookieSettings.innerHTML = cookieSettingsInitialHtml;
+                        }
+                    }
+                }
+            });
+            observer.observe($cookieSettings, {
+                childList: true,
+                subtree: true,
+                characterData: true,
+            });
+        }
+    })();
+
+    function initSelectPicker() {
+        $('.input-form-control select').selectpicker();
+    }
+
+    function launch_toast(isSuccessStatus, customText) {
+        const x = variables.$toast;
+        const tosterId = isSuccessStatus ? 'desc-success' : 'desc-error';
+        const $toasterText = x.find(`#${tosterId}`);
+        const defaultToasterText = $toasterText.html();
+        const toastTimeout = 5750;
+
+        x.data('toastTimeout', toastTimeout);
+
+        if (isSuccessStatus === 'differentStoreStatus') return;
+
+        if (!isSuccessStatus) {
+            x.removeClass("desc-success");
+            x.addClass("desc-error");
+        } else {
+            x.removeClass("desc-error");
+            x.addClass("desc-success");
+        }
+
+        if (customText) $toasterText.text(customText);
+
+        x.addClass("show");
+
+        setTimeout(function () {
+            $toasterText.html(defaultToasterText);
+            x.removeClass("show")
+        }, toastTimeout);
+    }
+
+    function toggleLoader(status) {
+        if (status) {
+            variables.$body.addClass('loading');
+        } else {
+            variables.$body.removeClass('loading');
+        }
+    }
+
+    function toggleQuantityListener(status) {
+        let $selector = $(variables.qtySelector);
+
+        if (status) {
+            $selector.on({
+                'mouseenter.qty touchstart.qty': function () {
+                    variables.initialQuantity = parseInt($(this).find(variables.qtyBoxSelector).html())
+                },
+                'mouseleave.qty touchend.qty': requests.updateQtyCartPartial
+            });
+        } else {
+            $selector.off('mouseenter.qty touchstart.qty mouseleave.qty touchend.qty');
+        }
+    }
+
+    function updatePricePartialSummary(res) {
+        let prices = JSON.parse(res);
+        let $price = $(variables.totalPriceSelector);
+        let $discount = $(variables.discountPriceSelector);
+        let $promotions = $(variables.totalPromotionsSelector)
+        let $widgetFooter = $(variables.widgetCartFooterSelector);
+
+        let price    = prices.itemsTotal;
+        let discount = prices.itemsReduction;
+        let currencyCode = prices.currencyCode;
+        let cartPromotions = prices.promotions;
+
+        let currencyUnstripped;
+        if ($price.length > 0 && $price.html()) {
+            currencyUnstripped = $price.html();
+            currencyUnstripped = currencyUnstripped.replace(/\.|\,|\d+/g, '');
+            let index = $price.html().search(currencyUnstripped);
+            price = (price / 100).toFixed(2).toString();
+            price = price.replace(/\./g,',');
+
+            if (index === 0) {
+                $price.html(currencyUnstripped + price);
+            } else {
+                $price.html(price + currencyUnstripped);
+            }
+        }
+
+        discount = (discount / 100).toFixed(2).toString();
+        if ($discount.length > 0 && $discount.html() ) {
+            let currencyUnstripped = $discount.html();
+            currencyUnstripped = currencyUnstripped.replace(/\.|,|-|\d+/g, '');
+            let index = $discount.html().search(currencyUnstripped);
+
+            discount = discount.replace(/\./g,',');
+
+            if (index === 0) {
+                $discount.html(currencyUnstripped + discount);
+            } else {
+                $discount.html(discount + currencyUnstripped);
+            }
+        } else {
+            let html =
+                '<div class="row total-price">' +
+                '   <div class="col">' + window.translations.discount + '</div>' +
+                '   <div class="col" id="price-discount">' + discount + '&nbsp;' + currencyCode + '</div>' +
+                '</div>';
+
+            $( html ).insertBefore( $price.parent() );
+        }
+
+        if (cartPromotions.length > 0) {
+            const promoCodes = [];
+            for (i in cartPromotions) {
+                promoCodes.push(cartPromotions[i].code);
+            }
+            let promoHtml =
+                '<div class="row total-promotions">' +
+                '   <div class="col">' + window.translations.campaigns + '</div>' +
+                '   <div class="col">' + promoCodes.join(', ') + '</div>' +
+                '</div>';
+            if ($promotions.length > 0) {
+                $promotions.replaceWith(promoHtml);
+            } else {
+                $widgetFooter.prepend(promoHtml);
+            }
+        } else {
+            $promotions.remove();
+        }
+    }
+
+    function toggleCartSummaryEvents(status) {
+        let increment = $(variables.incrementCartSummarySelector);
+        let decrement = $(variables.decrementCartSummarySelector);
+        let change = $(variables.inputQtyCartSummarySelector);
+        let remove = $(variables.removeFromCartSelector);
+
+        if (!status) {
+            increment.off('click.summary');
+            decrement.off('click.summary');
+            change.off('change.summary');
+            remove.off('click.summary');
+            return;
+        }
+
+        $(variables.removeFromCartSelector).removeFromCart();
+
+        increment.on('click.summary', function (event) {
+            event.preventDefault();
+
+            $(this).prev().val(function (i, val) {
+                return parseInt(val) + 1;
+            });
+
+            $(this).prev().trigger('change');
+        });
+
+        decrement.on('click.summary', function (event) {
+            event.preventDefault();
+
+            if ($(this).next().val() === 1) {
+                $(this).children().first().removeClass('counter-minus-icon').addClass('counter-delete-icon');
+                $(this).on('click.removeItem', function () {
+                    $(this).next().closest('tr').find(remove).trigger('click');
+                });
+            } else {
+                $(this).next().val(function (i, val) {
+                    return val > 1 ? parseInt(val) - 1 : 1;
+                });
+                $(this).next().trigger('change');
+            }
+        });
+
+        change.on('change.summary', function () {
+            let item = $(this).closest('tr');
+
+            if (!$(this).val() || $(this).val() < 1) {
+                $(this).val(1);
+            }
+
+            requests.updateQtyCartSummary(
+                item.data('href'),
+                item.data('product-id'),
+                $(this).val(),
+                item.find('td.product-title .modal textarea').val(),
+            );
+        });
+
+        remove.on('click.summary', function (){
+            variables.$body.addClass('loading');
+        });
+
+        if ($(window).width() < 767) {
+            $('.bringo-cart-list-items table td.product-price').each(function (i) {
+                $(this).prependTo($('.bringo-cart-list-items table td.product-title').eq(i));
+            });
+
+            $('.bringo-cart-list-items table td.product-quantity').each(function (i) {
+                $(this).prependTo($('.bringo-cart-list-items table td.product-title').eq(i));
+            });
+
+            $('.bringo-cart-list-items table td.product-title .bringo-instructions-cart-section').each(function(i) {
+                $(this).prependTo($('.bringo-cart-list-items table td.product-title').eq(i));
+            });
+
+            $('.bringo-cart-list-items table td.product-title > div.sylius-product-name').each(function (i) {
+                $(this).prependTo($('.bringo-cart-list-items table td.product-title').eq(i));
+            });
+
+            $('.bringo-cart-list-items table td.product-total').each(function (i) {
+                $(this).prependTo($('.bringo-cart-list-items table td.product-name').eq(i));
+            });
+
+            $('.bringo-cart-list-items table td.product-quantity').each(function (i) {
+                $(this).prependTo($('.bringo-cart-list-items table td.product-name').eq(i));
+            });
+
+            $('.bringo-cart-list-items table td.product-name > span.product-title').each(function (i) {
+                $(this).prependTo($('.bringo-cart-list-items table td.product-name').eq(i));
+            });
+        }
+    }
+
+    function showPromotionInfoModal() {
+        let modal = $(variables.promotionInfoModalSelector);
+
+        $('.promotions-icon-wrapper img.promotion-icon').on('click', e => {
+            let image = $(e.currentTarget).prop('src');
+            let names = $(e.currentTarget).data('names');
+            let type = $(e.currentTarget).data('type');
+            let descriptions = $(e.currentTarget).data('descriptions');
+            let descriptionNotes = $(e.currentTarget).data('description-notes');
+            let validUntilMessage = $(e.currentTarget).data('valid-until-message');
+            let endsAt = $(e.currentTarget).data('ends-at');
+            let descriptionNotesStyle = ``;
+            let modalInfo = `<h1 class="capitalize with-image"><img src="${image}"> ${names.join(', ')}</h1>`;
+
+
+                modalInfo += `<p class="text-muted mb-2">${validUntilMessage}</p>`;
+
+
+            if (Array.isArray(descriptions)) {
+                modalInfo += `<ul><li class="text-muted">${descriptions.join("</li><li>")}</li></ul>`;
+            }
+
+            if (Array.isArray(descriptionNotes)) {
+                if (type === 'AFG') {
+                    descriptionNotesStyle = `class="text-muted"`;
+                }
+
+                modalInfo += `<ul ${descriptionNotesStyle}><li>${descriptionNotes.join("</li><li>")}</li></ul>`;
+            }
+
+            modal.find('.modal-body').html(modalInfo);
+            modal.modal('show');
+        });
+
+        // campaigns
+        $('.promotions-icon-wrapper div.promotion-icon').on('click', e => {
+            let info = $(e.currentTarget).data('info');
+            let imagesPath = $(e.currentTarget).data('path');
+            let validUntilMessage = $(e.currentTarget).data('valid-until-message');
+            let totalCampaigns = info.length;
+            let modalInfo = `<div class="text-center">`;
+
+            $.each(info, (index, data) => {
+                if (data.image) {
+                    modalInfo += `<img class="mb-2 w-100" src="${imagesPath + data.image}">`;
+                }
+
+                modalInfo += `
+                    <h1 class="capitalize">${data.name}</h1>
+                    <p class="text-muted mb-2">${validUntilMessage}</p>
+                    <ul><li>${data.info.join("</li><li>")}</li></ul>
+                `;
+
+                if (index + 1 !== totalCampaigns) {
+                    modalInfo += `<hr>`;
+                }
+            });
+
+            modalInfo += `</div>`;
+
+            modal.find('.modal-body').html(modalInfo);
+            modal.modal('show');
+        });
+
+        $('.product-flag-promotion-modal').on('click', ({ currentTarget }) => {
+            const $target = $(currentTarget);
+
+            const translationPlaceholder = '%period%';
+            const promotionName = $target.data('promotion-name');
+            const promotionImage = $target.data('promotion-image');
+            const promotionFrom = $target.data('promotion-from');
+            const promotionTo = $target.data('promotion-to');
+            const promotionText = $target.data('promotion-text');
+            const promotionFullText = promotionText.replace(translationPlaceholder, `<strong>${promotionFrom}</strong> - <strong>${promotionTo}</strong>`);
+
+            const modalInfo = `<h1 class="capitalize with-image"><img src="${promotionImage}" alt="${promotionName}"> ${promotionName}</h1>`;
+            const modalHtml = `${modalInfo}<p>${promotionFullText}</p>`;
+
+            modal.find('.modal-body').html(modalHtml);
+            modal.modal('show');
+        });
+    };
+
+    const formatPrice = price => (price / 100).toFixed(2).toString();
+
+    return {
+        launchToast: launch_toast,
+        toggleLoader: toggleLoader,
+        toggleQuantityListener: toggleQuantityListener,
+        updatePricePartialSummary: updatePricePartialSummary,
+        toggleCartSummaryEvents: toggleCartSummaryEvents,
+        initSelectPicker: initSelectPicker,
+        showPromotionInfoModal: showPromotionInfoModal,
+        formatPrice,
+    }
+}();

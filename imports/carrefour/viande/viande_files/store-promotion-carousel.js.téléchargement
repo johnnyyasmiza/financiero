@@ -1,0 +1,17 @@
+$(document).ready(function () {
+    var swiperStorePromotions = new Swiper('.bringo-store-promotions-banner .swiper-container', {
+        slidesPerView: 1,
+        slidesPerGroup: 1,
+        spaceBetween: 0,
+        pagination: {
+            el: '.swiper-pagination',
+            clickable: true,
+        },
+        navigation: {
+            nextEl: '.bringo-store-promotions-banner .swiper-button-navigation-next',
+            prevEl: '.bringo-store-promotions-banner .swiper-button-navigation-prev'
+        },
+        nextButton: '.bringo-store-promotions-banner.swiper-button-navigation-next',
+        prevButton: '.bringo-store-promotions-banner .swiper-button-navigation-prev'
+    });
+});

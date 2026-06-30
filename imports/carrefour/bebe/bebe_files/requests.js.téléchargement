@@ -1,0 +1,692 @@
+var requests = function () {
+    function getCart(successCallback = () => {}) {
+        $.ajax({
+            type: 'GET',
+            url: $(variables.cartBodySelector).data('cart-ajax'),
+            success: function (res) {
+                common.toggleCartSummaryEvents(false);
+                $(variables.cartWrapperSelector).html(res);
+                common.toggleCartSummaryEvents(true);
+                common.toggleLoader(false);
+
+                successCallback();
+                $('body').trigger('init-multiple-vouchers');
+            },
+            fail: function () {
+                common.toggleLoader(false);
+            },
+        });
+    }
+
+    function updateQtyCartSummary(href, id, qty, notes = '') {
+        $.ajax({
+            type: 'GET',
+            url: href,
+            data: {
+                "item_id": id,
+                "qty": qty,
+                "notes": notes
+            },
+            beforeSend: _ => {
+                common.toggleLoader(true);
+            }
+        }).done(res => {
+            getCart();
+        }).fail((error) => {
+            let message =  window.translations.qty_update_error;
+
+            try {
+                const {responseText} = error;
+                const {itemsTotal} = JSON.parse(responseText);
+                const {errors} = JSON.parse(itemsTotal).errors;
+
+                message = errors[0];
+            }
+            catch (e) {}
+
+            common.launchToast(false, message);
+            common.toggleLoader(false);
+        });
+    }
+
+    function updateQtyCartPartial(ev) {
+        let target = $(ev.target);
+        let cartItemMaxQuantity = target.data('max');
+        let newProductQuantity = parseInt(target.parent().find(variables.qtyBoxSelector).html());
+
+        if (
+            variables.initialQuantity !== newProductQuantity
+            && newProductQuantity <= cartItemMaxQuantity
+        ) {
+            $.ajax({
+                type: 'GET',
+                url: target.closest('tr').data('update'),
+                data: {
+                    "item_id": target.closest('tr').data('id'),
+                    "qty": newProductQuantity,
+                    "notes": target.parent().find(variables.qtyBoxSelector).data('notes')
+                },
+                beforeSend: _ => {
+                    common.toggleLoader(true);
+                }
+            }).done(res => {
+                const $cartHeaderCountBadge = $('#partial_cart_summary #cart-btn .badge-items');
+                let finalQty = 0;
+
+                $('.js-cart .js-cart-item').each((key, element) => {
+                    const $element = $(element);
+                    finalQty = finalQty + parseInt($element.find('.js-cart-item-qty').html(), 0);
+                });
+
+                $cartHeaderCountBadge.html(finalQty);
+
+                common.updatePricePartialSummary(res);
+            }).always(_ => {
+                common.toggleLoader(false);
+            });
+        }
+
+        variables.initialQuantity = 0;
+    }
+
+    /**
+     * Get rendered view for partial cart view
+     * Toggle cart partial events
+     */
+    function getPartialCart() {
+        $.ajax({
+            url: partial_cart_summary,
+            data: {'template': '@SyliusShop/Cart/_widget.html.twig'},
+            success: function(result) {
+                const totalCartValue = $(result).find('#price-el').data('price');
+                $('body').trigger('totalCartValueUpdated', totalCartValue);
+
+                variables.loadingQueue = variables.loadingQueue - 1;
+                if (variables.loadingQueue === 0) {
+                    $(variables.partialCartSummarySelector).css('pointer-events', 'auto');
+                    common.launchToast(true);
+                    common.toggleLoader(false);
+                }
+                $(variables.partialCartSummarySelector).html(result);
+                $('#cart-btn').addClass('animate');
+                common.toggleQuantityListener(false);
+                common.toggleQuantityListener(true);
+            }
+        });
+    }
+
+    /**
+     * Remove product from wishlist
+     * Update buttons
+     * Update view
+     */
+    function removeFromWishlistDetails(element, form) {
+        let FavoriteNumberBadge = $('#partial_favorite .badge-items').html();
+
+        $.ajax({
+            url: form.attr('action'),
+            method: 'DELETE',
+            beforeSend: _ => {
+                common.toggleLoader(true);
+            }
+        }).done(result => {
+            $(variables.partialFavoriteSelector).html(result);
+            $(variables.removeFromWishlistProductPageSelector).css('display', 'none');
+            $(variables.addToWishlistProductPageSelector).css('display', 'block');
+            $('#partial_favorite .badge-items').html(parseInt(FavoriteNumberBadge) - 1);
+            let message = $('.remove-from-wishlist-message').data('message');
+            $("#toast #desc-success").html(message);
+            common.launchToast(true);
+        }).fail(_ => {
+            console.log("fail");
+        }).always(_ => {
+            common.toggleLoader(false);
+        });
+    }
+
+    /**
+     * Add product to wishlist
+     * Update buttons
+     * Update view
+     */
+    function addToWishlistDetails(element, form) {
+        let FavoriteNumberBadge = $('#partial_favorite .badge-items').html();
+
+        $.ajax({
+            type: 'POST',
+            url: form.attr('action'),
+            data: form.serialize(),
+            beforeSend: _ => {
+                common.toggleLoader(true);
+            }
+        }).done(result => {
+            $(variables.addToWishlistProductPageSelector).css('display', 'none');
+            $(variables.removeFromWishlistProductPageSelector).css('display', 'inline');
+            $('#partial_favorite .badge-items').html(parseInt(FavoriteNumberBadge) + 1);
+            $('#remove-from-wishlist form').attr('action', `/${element.attr('data-locale')}/wishlists/products/${result.id}`);
+            let message = $('.add-to-wishlist-message').data('message');
+            $("#toast #desc-success").html(message);
+            common.launchToast(true);
+        }).fail(_ => {
+            console.log("fail");
+        }).always(_ => {
+            common.toggleLoader(false);
+        });
+    }
+
+    /**
+     * Remove product from wishlist
+     * Update buttons
+     * Update view
+     */
+    function removeFromWishlist(element, form) {
+        let FavoriteNumberBadge = $('#partial_favorite .badge-items').html();
+
+        $.ajax({
+            url: form.attr('action'),
+            method: 'DELETE',
+            beforeSend: _ => {
+                common.toggleLoader(true);
+            }
+        }).done(result => {
+            $(element).data('checked', false);
+            $(element).removeClass('remove-from-wishlist-btn').addClass('add-to-wishlist-btn');
+            $(element).find('i').addClass('add-to-wishlist-icon add-to-wishlist-white-icon').removeClass('remove-to-wishlist-icon remove-to-wishlist-white-icon');
+            // $(variables.partialFavoriteSelector).html(result);
+            $('#partial_favorite .badge-items').html(parseInt(FavoriteNumberBadge) - 1);
+            $(variables.removeFromWishlistProductPageSelector).css('display', 'none');
+            $(variables.addToWishlistProductPageSelector).css('display', 'inline');
+            $(form).attr('action', `/${element.attr('data-locale')}/wishlists/products/${$(form).attr('data-variantcode')}`);
+            let message = $('.remove-from-wishlist-message').attr('data-message');
+            $("#toast #desc-success").html(message);
+            $(element).attr('data-value', 'add');
+            common.launchToast(true);
+        }).fail(_ => {
+            console.log("fail");
+        }).always(_ => {
+            common.toggleLoader(false);
+        });
+    }
+
+    /**
+     * Add product to wishlist
+     * Update buttons
+     * Update view
+     */
+    function addToWishlist(element, form) {
+        let FavoriteNumberBadge = $('#partial_favorite .badge-items').html();
+
+        $.ajax({
+            type: 'POST',
+            url: form.attr('action'),
+            data: form.serialize(),
+            beforeSend: _ => {
+                common.toggleLoader(true);
+            }
+        }).done(result => {
+            $(element).data('checked', true);
+            $(element).removeClass('add-to-wishlist-btn').addClass('remove-from-wishlist-btn');
+            $(element).find('i').removeClass('add-to-wishlist-icon add-to-wishlist-white-icon').addClass('remove-to-wishlist-icon remove-to-wishlist-white-icon');
+            // $(variables.partialFavoriteSelector).html(result);
+            $('#partial_favorite .badge-items').html(parseInt(FavoriteNumberBadge) + 1);
+            $(variables.addToWishlistProductPageSelector).css('display', 'none');
+            $(variables.removeFromWishlistProductPageSelector).css('display', 'inline');
+            $(element).attr('data-value', 'remove');
+            $(form).attr('action', `/${element.attr('data-locale')}/wishlists/products/${result.id}`);
+            let message = $('.add-to-wishlist-message').attr('data-message');
+            $("#toast #desc-success").html(message);
+            common.launchToast(true);
+        }).fail(_ => {
+            console.log("fail");
+        }).always(_ => {
+            common.toggleLoader(false);
+        });
+    }
+
+    $('.bringo-product-listing .submit-wishlist-btn').on('click', e => {
+        e.preventDefault();
+
+        let element = $(e.currentTarget);
+        let form = $(e.currentTarget).parent();
+
+        if (element.attr('data-value') === 'add') {
+            addToWishlist(element, form);
+        } else {
+            removeFromWishlist(element, form);
+        }
+    });
+
+    $('.bringo-product-details .right-product-details .submit-wishlist-btn').on('click', e => {
+        e.preventDefault();
+
+        let element = $(e.currentTarget);
+        let form = element.parent();
+
+        if (element.attr('data-value') === 'add') {
+            addToWishlistDetails(element, form);
+        } else {
+            removeFromWishlistDetails(element, form);
+        }
+    });
+
+    /**
+     * Remove THIS element from cart
+     * Update partial cart view
+     * Toggle partial cart view
+     */
+    function removeFromCartPartial() {
+        $.ajax({
+            url: $(this).data('url'),
+            type: 'DELETE',
+            beforeSend: _ => {
+                common.toggleLoader(true);
+            }
+        }).done(res => {
+            $.ajax({
+                url: partial_cart_summary,
+                data: {'template': '@SyliusShop/Cart/_widget.html.twig'},
+                success: function (result) {
+                    $(variables.partialCartSummarySelector).html(result);
+                    $(variables.cartButtonSelector).trigger('click');
+                    common.toggleQuantityListener(true);
+                }
+            });
+        }).always(_ => {
+            common.toggleLoader(false);
+        });
+    }
+
+    /**
+     * Remove ELEMENT from cart
+     * Update cart view
+     * @param index
+     * @param element
+     */
+    function removeFromCartApi(index, element) {
+        $(element).api({
+            method: 'DELETE',
+            on: 'click',
+            beforeSend: function (settings) {
+                return settings;
+            },
+            onSuccess: function (response) {
+                getCart();
+            }
+        });
+    }
+
+    /**
+     * Add ELEMENT to cart
+     * Update partial cart view
+     * @param index
+     * @param element
+     */
+    function addToCartApi(index, element) {
+        var href = $(element).attr('action');
+        var redirectUrl = $(element).data('redirect');
+        var validationElement = null;
+        var afAnalyticsData = $(element).data('afanalytics');
+
+        $(element).api({
+            method: 'POST',
+            on: 'submit',
+            cache: false,
+            url: href,
+            beforeSend:
+                function (settings) {
+                    if($('#user_is_logged').val() == 0){
+                        redirectToLogin();
+                        return false;
+                    }
+                cart_item_element = element;
+                settings.data = $(this).serialize();
+                /* Disable my cart button until it's rendered*/
+                $(variables.partialCartSummarySelector).css('pointer-events', 'none');
+                variables.loadingQueue = variables.loadingQueue + 1;
+
+                validationElement = $(this).find(variables.syliusValidationErrorSelector);
+
+                common.toggleLoader(true);
+
+                $('#cart-btn').removeClass('animate');
+
+                return settings;
+            },
+            onSuccess: function (request) {
+                const {orderId} = request;
+
+                window.afAnalyticsAddToCart({
+                    ...afAnalyticsData,
+                    ...{
+                        orderId,
+                    },
+                });
+
+                $("#toast #desc-success").html($('.add-to-cart-message').data('message'));
+                $(variables.syliusValidationErrorSelector).addClass('hidden');
+                // validationElement.html('');
+                if (partial_cart_summary.length > 0) {
+                    getPartialCart();
+                }
+                else {
+                    common.launchToast(true);
+                }
+                /* Enable my cart button after render*/
+            },
+            onFailure: function (response) {
+                window.afAnalyticsAddToCart(afAnalyticsData);
+                $('body').trigger('addCartRequestFailure');
+
+                variables.loadingQueue = variables.loadingQueue - 1;
+
+                $(variables.partialCartSummarySelector).css('pointer-events', 'auto');
+
+                // common.launchToast(false);
+                common.toggleLoader(false);
+
+                let different_store = 'differentStoreStatus';
+
+                if (typeof response.code != 'undefined' && response.code == 406) {
+                    $(variables.notSameStoreModalSelector).modal('show');
+                    common.launchToast(different_store);
+                    return;
+                }
+
+                validationElement.removeClass('hidden');
+
+                var validationMessage = '';
+
+                $.each(response.errors.errors, function (key, message) {
+                    validationMessage += message;
+                });
+
+                validationElement.html(validationMessage);
+                setTimeout(function () {
+                    validationElement.addClass('hidden');
+                    validationElement.html('');
+                }, 5000);
+                $(element).removeClass('loading');
+
+            }
+        });
+    }
+
+    function redirectToLogin() {
+        let baseUrl = window.location.origin;
+        let pathArray = window.location.pathname.split( '/' );
+        $(location).attr('href', baseUrl +'/'+ pathArray[1]+'/login')
+    }
+
+    $("#change-address-location-submit").click(function(e) {
+        e.preventDefault(); // avoid to execute the actual submit of the form.
+
+        if (!$('.location-store #address').val()) {
+            $('#address_street_error').removeClass('d-none');
+            setTimeout(function () {
+                $('#address_street_error').addClass('d-none');
+            }, 3000);
+            return;
+        } else if (!$('.location-store #street_number').val() && window.allInOneThemeVariant !== 'BringoMoroccoTheme') {
+            $('#address_number_error').removeClass('d-none');
+            setTimeout(function () {
+                $('#address_number_error').addClass('d-none');
+            }, 3000);
+            return;
+        }
+        common.toggleLoader(true);
+
+        var address = $("#address").val() + ' ' + $("#street_number").val();
+        var googleApiGeolocationKey = $("#google_api_geolocation_key").val();
+
+        const googleMapApiUrl = `https://maps.google.com/maps/api/geocode/json?key=${googleApiGeolocationKey}&address=${encodeURIComponent(address)}&region=${window.googleMapsRegion}&language=${window.googleMapsLanguage}`;
+
+        $.get(googleMapApiUrl, function (data) {
+            if (data.status == "OK" && $('.location-store #administrative_area_level_1').val()) {
+                var searchAddressComponents = data.results[0].address_components,
+                    searchPostalCode = "";
+
+                $.each(searchAddressComponents, function () {
+                    if (this.types[0] == "postal_code") {
+                        searchPostalCode = this.short_name;
+                    }
+                });
+                document.getElementById('postal_code').value = searchPostalCode;
+
+                let url = $('#verify_new_address').val();
+                $.ajax({
+                    type: 'POST',
+                    url: url,
+                    data: $("#store_search").serialize(),
+                    success: res => {
+                        common.toggleLoader(false);
+                        window.location.reload();
+                    },
+                    error: res => {
+                        if (res.responseText === 'differentStore') {
+                            common.toggleLoader(false);
+                            $("#street_for_change_address").text($("#store_search").find('input[name="store_search[address]"]').val());
+                            $('#not-the-same-store-modal-for-address').modal('show');
+                            common.launchToast('differentStoreStatus');
+                        } else {
+                            $('#toast #desc-error').html('error');
+                            common.launchToast();
+                        }
+                    }
+                });
+            }
+            else {
+                $('#modalAlertChangeAddressSubmit').modal('show');
+            }
+
+            common.toggleLoader(false);
+        });
+    });
+
+    $('.bringo-shipping-address input[name="sylius_checkout_address[shippingAddress][streetNumber]').on('input', function() {
+        $('#address_number_error').addClass('d-none');
+    });
+
+    $('#modal_planned_order').click(function(e) {
+        e.preventDefault();
+        $('#planned-order-modal-intervals').modal('show');
+    });
+
+    $('#planned-order-submit').on('click', function(event) {
+        event.preventDefault();
+
+        let val = $('#planned-order-modal-intervals input[name=planned_order_interval]:checked').val();
+        let dateStart = $('#planned-order-modal-intervals input[name=planned_order_interval]:checked').attr('date-start');
+        let dateEnd = $('#planned-order-modal-intervals input[name=planned_order_interval]:checked').attr('date-end');
+
+        if (typeof val == 'undefined') {
+            $('#error_intervals').show();
+        } else {
+            var isBringoMoroccoTheme = window.allInOneThemeVariant === 'BringoMoroccoTheme';
+            var dateSeparator = isBringoMoroccoTheme ? '/' : '.';
+            var timeSeparator = isBringoMoroccoTheme ? window.translations.hours_separator : '-';
+            var formatedDateStart = new Date(dateStart);
+            var formatedDateEnd = new Date(dateEnd);
+            var month = formatedDateStart.getMonth() + 1
+            formatedMonth = ("0" + month).slice(-2);
+            formatedDay = formatedDateStart.getUTCDate() + dateSeparator + formatedMonth;
+            formatedDateStart = ("0" + formatedDateStart.getHours()).slice(-2) + ':' + ("0" + formatedDateStart.getMinutes()).slice(-2);
+            formatedDateEnd = ("0" + formatedDateEnd.getHours()).slice(-2) + ':' + ("0" + formatedDateEnd.getMinutes()).slice(-2);
+            $('#modal_planned_order .content .gcolor').remove();
+            $('#modal_planned_order .content .description .shippingInfo').append('<p class="gcolor">' + window.translations.shipping_interval + ': ' + formatedDay + ' ' + window.translations.between_hours + ' ' + formatedDateStart + ' ' + timeSeparator + ' ' + formatedDateEnd + '</p>');
+            $('#modal_planned_order input#selected-planned-interval').attr('value', val).attr('date-start', dateStart).attr('date-end', dateEnd);
+            $('#modal_planned_order input:radio:first').prop("checked", true);
+
+            $('#planned-order-modal-intervals').modal('hide');
+        }
+    });
+
+    $(".btn-address-checkout").click(function(e) {
+        var $streetNumberInput = $("#street_number");
+        e.preventDefault(); // avoid to execute the actual submit of the form.
+
+        if (!$('#sylius_checkout_address_shippingAddress_phoneNumber').val()) {
+            $('#shipping_phone_number_error').removeClass('d-none');
+            $("html, body").animate({ scrollTop: 0 }, "slow");
+            return;
+        }
+
+        if (!$streetNumberInput.val()) {
+            if (window.allInOneThemeVariant === 'BringoMoroccoTheme') {
+                $streetNumberInput.val(0);
+            } else {
+                $('#address_number_error').removeClass('d-none');
+                return;
+            }
+        }
+
+        if (
+            !$('.bringo-shipping-address #administrative_area_level_1').val()
+            || !$('#locality').val()
+            || !$('#country').val()
+            || !$('#latitude').val()
+            || !$('#longitude').val()
+            || !$('#route').val()
+        ) {
+            $('#modalAlertChangeAddressSubmit').modal('show');
+            return;
+        }
+
+        common.toggleLoader(true);
+        let url = $('#verify_new_address').val();
+
+        $.ajax({
+            type: 'POST',
+            url: url + '?checkout=1',
+            data: $("#sylius-shipping-address :input").serialize(),
+            success: res => {
+                common.toggleLoader(false);
+                $("#store_search_on_checkout_address").submit();
+            },
+            error: res => {
+                if (res.responseText === 'differentStore') {
+                    common.toggleLoader(false);
+                    $("#street_for_change_address").text($("#store_serach_on_checkout_address").find('input[name="sylius_checkout_address[shippingAddress][address]]"]').val());
+                    $('#not-the-same-store-modal-for-address-on-place-order').modal('show');
+                    common.launchToast('differentStoreStatus');
+                } else {
+                    $('#toast #desc-error').html('error');
+                    common.launchToast();
+                }
+            }
+        });
+    });
+
+    function saveSessionForAddress(data, type) {
+        let baseUrl = window.location.origin;
+        let url = $('#verify_new_address').val();
+
+        $.ajax({
+            type: 'POST',
+            url: url + '?s=1',
+            data: data,
+            success: function(res) {
+                if (type === 1) {
+                    window.location.href = baseUrl + $("#store_list_path").val();
+                } else if (type === 3) {
+                    $("#store_search_on_checkout_address").submit();
+                } else if (type === 4) {
+                    $("#store_search").submit();
+                } else {
+                    window.location.reload();
+                }
+            }
+        });
+    }
+
+    $(document).ready(function () {
+        $('#not-the-same-store-confirmation-for-address-button').on('click', function (event) {
+            common.toggleLoader(true);
+            event.preventDefault();
+
+            $.ajax({
+                url: $('#clear_cart_url').val(),
+                type: 'DELETE',
+                success: function(result) {
+                    $('#not-the-same-store-modal-for-address').modal('hide');
+                    saveSessionForAddress($("#store_search").serialize(), 2);
+                    common.toggleLoader(false);
+                }
+            });
+        });
+
+        $('#not-the-same-store-confirmation-for-address-button-on-place-order').on('click', function (event) {
+            event.preventDefault();
+
+            $.ajax({
+                url: $('#clear_cart_url').val(),
+                type: 'DELETE',
+                success: function(result) {
+                    $('#not-the-same-store-modal-for-address-on-place-order').modal('hide');
+                    saveSessionForAddress($("#sylius-shipping-address :input").serialize(), 1);
+                    common.toggleLoader(false);
+                }
+            });
+        });
+    });
+
+    /**
+     * Clear cart after changing store
+     */
+    function clearCart() {
+        $.ajax({
+            url: $(variables.clearCartUrlSelector).val(),
+            type: 'DELETE',
+            beforeSend: function () {
+                common.toggleLoader(true);
+            },
+            success: function () {
+                $(cart_item_element).submit();
+            },
+            failure: function () {
+                common.toggleLoader(false);
+            }
+        });
+    }
+
+    function sendReview(ev) {
+        ev.preventDefault();
+
+        var $form = $(ev.currentTarget).closest('form');
+        $(ev.currentTarget).prop('disabled', true);
+
+        $.ajax({
+            type: 'POST',
+            url: $form.attr('action'),
+            data: $form.serialize(),
+            beforeSend: _ => {
+                common.toggleLoader(true);
+            }
+        }).done(res => {
+            $('.bringo-create-review').html(res);
+
+            pageEvents.initRating();
+
+            $('html, body').animate({
+                scrollTop: $("#reviews").offset().top
+            }, 1000);
+        }).fail(_ => {
+            console.log("fail");
+        }).always(_ => {
+            common.toggleLoader(false);
+        });
+    }
+
+    return {
+        getCart: getCart,
+        getPartialCart: getPartialCart,
+        addToCartApi: addToCartApi,
+        removeFromCartApi: removeFromCartApi,
+        removeFromCartPartial: removeFromCartPartial,
+        addToWishlist: addToWishlist,
+        removeFromWishlist: removeFromWishlist,
+        clearCart: clearCart,
+        updateQtyCartSummary: updateQtyCartSummary,
+        updateQtyCartPartial: updateQtyCartPartial,
+        sendReview: sendReview
+    }
+}();

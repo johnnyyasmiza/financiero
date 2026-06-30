@@ -1,0 +1,135 @@
+var variables = function () {
+    // VARIABLES
+    var loadingQueue = 0;
+    var initialQuantity = 0;
+    // JQUERY DOM OBJECTS
+    var $toast = $('#toast');
+    var $body = $('body');
+    var $html = $('html');
+
+    //  JQUERY SELECTORS
+    var searchStoreAddressInput = 'input[name="store_search[address]"]';
+    var incrementCartSummarySelector = '#sylius-cart-items .increment-quantity';
+    var decrementCartSummarySelector = '#sylius-cart-items .decrement-quantity';
+    var inputQtyCartSummarySelector = '#sylius-cart-items .sylius-quantity input[type="number"]';
+    var removeFromCartSelector = '.sylius-cart-remove-button';
+    var cartBodySelector = '.bringo-cart-body';
+    var cartWrapperSelector = '.cart-wrapper';
+    var partialCartSummarySelector = '#partial_cart_summary';
+    var syliusValidationErrorSelector = '.sylius-validation-error';
+    var notSameStoreModalSelector = '#not-the-same-store-modal';
+    var notSameStoreModalConfirmationSelector = '#not-the-same-store-confirmation-button';
+    var addToWishlistProductPageSelector = '#add-to-wishlist';
+    var removeFromWishlistProductPageSelector = '#remove-from-wishlist';
+    var partialFavoriteSelector = '#partial_favorite';
+    var clearCartUrlSelector = '#clear_cart_url';
+    var qtySelector = '.quantity-select';
+    var qtyBoxSelector = '.quantity-box';
+    var totalPriceSelector = '#price-el';
+    var discountPriceSelector = '#price-discount';
+    var totalPromotionsSelector = '.total-promotions';
+    var widgetCartFooterSelector = '.footer-cart-section';
+    var ratingStarSelector = '.bringo-rating.star';
+    var userNameSelector = '.bringo-review-comments .avatar span';
+    var averageRatingDataSelector = '#average-rating';
+    var averageRatingTextSelector = '.product-reviews > a > span';
+    var averageRatingLinkSelector = '.product-reviews > a';
+    var reviewsTabSelector = '#reviews-tab';
+    var reviewsSelector = '#reviews';
+    var partialCartRemoveItemSelector = '#cart-big .btn-cart-delete-item';
+    var partialCartRemoveButtonSelector = '.btn-cart-delete-item';
+    var addToCartFormSelector = '.addToCartForm';
+    var incrementBringoListingSelector = '.bringo-product-listing .box-product .bottom-product-listing-box .product-listing-quantity .increment-quantity';
+    var decrementBringoListingSelector = '.bringo-product-listing .box-product .bottom-product-listing-box .product-listing-quantity .decrement-quantity';
+    var incrementProductDetailsSelector = '.bringo-product-details .product-quantity .increment-quantity';
+    var decrementProductDetailsSelector = '.bringo-product-details .product-quantity .decrement-quantity';
+    var inputQtyProductDetailsSelector = '.bringo-product-details .product-quantity input';
+    var cartButtonSelector = '#cart-btn';
+    var addToWishlistClassSelector = '.add-to-wishlist';
+    var headerSection = '.bringo-header-section';
+    var mobileMenu = '#mobile-menu';
+    var mobileMenuExpand = '#mobile-menu-expand';
+    var pageOverlay = '.page-overlay';
+    var changeAddressLocation = '#change-address-location';
+    var cancelAddressLocation = '#cancel-change-address-location';
+    var headerStoreLocation = '.bringo-subheader-section .location-store';
+    var partialCart = '#cart-big';
+    var closeCartSelector = '#close-cart-btn';
+    var subheaderSearchResultsSelector = '.bringo-subheader-section .big-search-results';
+    var subheaderSearchInputSelector = '.bringo-subheader-section .big-search input';
+    var subheaderStoreLocationSelector = '.bringo-subheader-section .location-store';
+    var campaignPageSelector = '.campaign-page';
+    var subheaderAllStoreButtonSelector = '.btn-header-action.btn-all-stores-page';
+    var campaignPageButtonSelector = '.btn-header-action.btn-campaigns-page';
+    var pieceUnitBringoListSelector = '.quantity-piece-list';
+    var defaultUnitBringoListSelector = '.quantity-units-list';
+    var pieceUnitBringoDetailsSelector = '.quantity-piece-details';
+    var defaultUnitBringoDetailsSelector = '.quantity-units-details';
+    var promotionInfoModalSelector = '#promotions-info-modal';
+
+    return {
+        searchStoreAddressInput: searchStoreAddressInput,
+        subheaderStoreLocationSelector: subheaderStoreLocationSelector,
+        campaignPageSelector: campaignPageSelector,
+        subheaderAllStoreButtonSelector: subheaderAllStoreButtonSelector,
+        campaignPageButtonSelector: campaignPageButtonSelector,
+        subheaderSearchInputSelector: subheaderSearchInputSelector,
+        subheaderSearchResultsSelector: subheaderSearchResultsSelector,
+        closeCartSelector: closeCartSelector,
+        partialCart: partialCart,
+        headerStoreLocation: headerStoreLocation,
+        changeAddressLocation: changeAddressLocation,
+        cancelAddressLocation: cancelAddressLocation,
+        headerSecton: headerSection,
+        mobileMenu: mobileMenu,
+        mobileMenuExpand: mobileMenuExpand,
+        pageOverlay: pageOverlay,
+        loadingQueue: loadingQueue,
+        initialQuantity: initialQuantity,
+        $html: $html,
+        $toast: $toast,
+        $body: $body,
+        incrementCartSummarySelector: incrementCartSummarySelector,
+        decrementCartSummarySelector: decrementCartSummarySelector,
+        inputQtyCartSummarySelector: inputQtyCartSummarySelector,
+        removeFromCartSelector: removeFromCartSelector,
+        cartBodySelector: cartBodySelector,
+        cartWrapperSelector: cartWrapperSelector,
+        partialCartSummarySelector: partialCartSummarySelector,
+        syliusValidationErrorSelector: syliusValidationErrorSelector,
+        notSameStoreModalSelector: notSameStoreModalSelector,
+        notSameStoreModalConfirmationSelector: notSameStoreModalConfirmationSelector,
+        addToWishlistProductPageSelector: addToWishlistProductPageSelector,
+        removeFromWishlistProductPageSelector: removeFromWishlistProductPageSelector,
+        partialFavoriteSelector: partialFavoriteSelector,
+        clearCartUrlSelector: clearCartUrlSelector,
+        qtySelector: qtySelector,
+        qtyBoxSelector: qtyBoxSelector,
+        totalPriceSelector: totalPriceSelector,
+        discountPriceSelector: discountPriceSelector,
+        totalPromotionsSelector: totalPromotionsSelector,
+        widgetCartFooterSelector: widgetCartFooterSelector,
+        ratingStarSelector: ratingStarSelector,
+        userNameSelector: userNameSelector,
+        averageRatingDataSelector: averageRatingDataSelector,
+        averageRatingTextSelector: averageRatingTextSelector,
+        averageRatingLinkSelector: averageRatingLinkSelector,
+        reviewsTabSelector: reviewsTabSelector,
+        reviewsSelector: reviewsSelector,
+        partialCartRemoveItemSelector: partialCartRemoveItemSelector,
+        addToCartFormSelector: addToCartFormSelector,
+        incrementBringoListingSelector: incrementBringoListingSelector,
+        decrementBringoListingSelector: decrementBringoListingSelector,
+        incrementProductDetailsSelector: incrementProductDetailsSelector,
+        decrementProductDetailsSelector: decrementProductDetailsSelector,
+        inputQtyProductDetailsSelector: inputQtyProductDetailsSelector,
+        cartButtonSelector: cartButtonSelector,
+        addToWishlistClassSelector: addToWishlistClassSelector,
+        partialCartRemoveButtonSelector: partialCartRemoveButtonSelector,
+        pieceUnitBringoListSelector: pieceUnitBringoListSelector,
+        defaultUnitBringoListSelector : defaultUnitBringoListSelector,
+        pieceUnitBringoDetailsSelector : pieceUnitBringoDetailsSelector,
+        defaultUnitBringoDetailsSelector : defaultUnitBringoDetailsSelector,
+        promotionInfoModalSelector : promotionInfoModalSelector
+    }
+}();

@@ -1,0 +1,162 @@
+$(document).ready(function () {
+    $('.address-section .address-box .address input').on('input',function() {
+        if($(this).val()){
+            function checkGoogleAutocompleteChange() {
+                if ($('body .pac-container').is(':hidden')) {
+                    $('.address-section .address-box .address').css({
+                        'border-bottom-right-radius' : '',
+                        'border-bottom-left-radius' : ''
+                    });
+
+                    $('.address-section .address-box .address .tooltip-info').css({
+                        'opacity' : '0'
+                    });
+                } else {
+                    $('.address-section .address-box .address').css({
+                        'border-bottom-right-radius' : '0',
+                        'border-bottom-left-radius' : '0'
+                    });
+                    $('.address-section .address-box .address .tooltip-info').css({
+                        'opacity' : '1'
+                    });
+                }
+            }
+
+            setInterval(checkGoogleAutocompleteChange, 500);
+        } else {
+            function checkGoogleAutocompleteChange() {
+                if ($('body .pac-container').is(':hidden')) {
+                    $('.address-section .address-box .address').css({
+                        'border-bottom-right-radius' : '',
+                        'border-bottom-left-radius' : ''
+                    });
+                    $('.address-section .address-box .address .tooltip-info').css({
+                        'opacity' : '0'
+                    });
+                } else {
+                    $('.address-section .address-box .address').css({
+                        'border-bottom-right-radius' : '0',
+                        'border-bottom-left-radius' : '0'
+                    })
+                    $('.address-section .address-box .address .tooltip-info').css({
+                        'opacity' : '1'
+                    });
+                }
+            }
+
+            setInterval(checkGoogleAutocompleteChange, 500);
+        }
+    });
+
+    $('.location-store .street-name input').on('input',function() {
+        $('#street_number').val('');
+        if($(this).val()){
+            function checkGoogleAutocompleteChange() {
+                if ($('body .pac-container').is(':hidden')) {
+                    $('.location-store .tooltip-info').css({
+                        'opacity' : '0',
+                        'z-index' : '-100'
+                    });
+                } else {
+                    $('.location-store .tooltip-info').css({
+                        'opacity' : '1',
+                        'z-index' : '100'
+                    });
+                }
+            }
+
+            setInterval(checkGoogleAutocompleteChange, 500);
+        } else {
+            function checkGoogleAutocompleteChange() {
+                if ($('body .pac-container').is(':hidden')) {
+                    $('.location-store .tooltip-info').css({
+                        'opacity' : '0',
+                        'z-index' : '-100'
+                    });
+                } else {
+                    $('.location-store .tooltip-info').css({
+                        'opacity' : '1',
+                        'z-index' : '100'
+                    });
+                }
+            }
+
+            setInterval(checkGoogleAutocompleteChange, 500);
+        }
+    });
+
+    $('.bringo-shipping-address input[name="sylius_checkout_address[shippingAddress][address]"]').on('input',function() {
+        $('#street_number').val('');
+        if($(this).val()){
+            function checkGoogleAutocompleteChange() {
+                if ($('body .pac-container').last().is(':hidden')) {
+                    $('.bringo-shipping-address .tooltip-info').css({
+                        'opacity' : '0',
+                        'z-index' : '-100'
+                    });
+                } else {
+                    $('.bringo-shipping-address .tooltip-info').css({
+                        'opacity' : '1',
+                        'z-index' : '100'
+                    });
+                }
+            }
+
+            setInterval(checkGoogleAutocompleteChange, 500);
+        } else {
+            function checkGoogleAutocompleteChange() {
+                if ($('body .pac-container').last().is(':hidden')) {
+                    $('.bringo-shipping-address .tooltip-info').css({
+                        'opacity' : '0',
+                        'z-index' : '-100'
+                    });
+                } else {
+                    $('.bringo-shipping-address .tooltip-info').css({
+                        'opacity' : '1',
+                        'z-index' : '100'
+                    });
+                }
+            }
+
+            setInterval(checkGoogleAutocompleteChange, 500);
+        }
+    });
+
+
+    $('.bringo-billing-address input[name="sylius_checkout_address[billingAddress][address]"]').on('input',function() {
+        if($(this).val()){
+            function checkGoogleAutocompleteChange() {
+                if ($('body .pac-container').first().is(':hidden')) {
+                    $('.bringo-billing-address .tooltip-info').css({
+                        'opacity' : '0',
+                        'z-index' : '-100'
+                    });
+                } else {
+                    $('.bringo-billing-address .tooltip-info').css({
+                        'opacity' : '1',
+                        'z-index' : '100'
+                    });
+                }
+            }
+
+            setInterval(checkGoogleAutocompleteChange, 500);
+        } else {
+            function checkGoogleAutocompleteChange() {
+                if ($('body .pac-container').first().is(':hidden')) {
+                    $('.bringo-billing-address .tooltip-info').css({
+                        'opacity' : '0',
+                        'z-index' : '-100'
+                    });
+                } else {
+                    $('.bringo-billing-address .tooltip-info').css({
+                        'opacity' : '1',
+                        'z-index' : '100'
+                    });
+                }
+            }
+
+            setInterval(checkGoogleAutocompleteChange, 500);
+        }
+    });
+
+});

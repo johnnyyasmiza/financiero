@@ -1,0 +1,245 @@
+$(document).ready(function () {
+
+    if ($(window).width() > 1460 && $(window).width() < 3000) {
+        if($(".swiper-container .swiper-wrapper .box-product").length <= 6) {
+            $('.bringo-similar-products-carousel .swiper-button-navigation-next, .bringo-similar-products-carousel .swiper-button-navigation-prev').hide();
+        }
+    }
+
+    if ($(window).width() > 1260 && $(window).width() < 1459) {
+        if($(".swiper-container .swiper-wrapper .box-product").length <= 5) {
+            $('.bringo-similar-products-carousel .swiper-button-navigation-next, .bringo-similar-products-carousel .swiper-button-navigation-prev').hide();
+        }
+    }
+
+    if ($(window).width() > 991 && $(window).width() < 1259) {
+        if($(".swiper-container .swiper-wrapper .box-product").length <= 4) {
+            $('.bringo-similar-products-carousel .swiper-button-navigation-next, .bringo-similar-products-carousel .swiper-button-navigation-prev').hide();
+        }
+    }
+
+
+
+    var swiperSimilarProducts = new Swiper('.bringo-similar-products-carousel .swiper-container', {
+        slidesPerView: 6,
+        slidesPerGroup: 6,
+        spaceBetween: 10,
+        breakpoints: {
+            1460: {
+                slidesPerView: 5,
+                slidesPerGroup: 5
+            },
+            1260: {
+                slidesPerView: 4,
+                slidesPerGroup: 4
+            },
+            992: {
+                slidesPerView: 'auto',
+                slidesPerGroup: 3,
+                spaceBetween: 0
+            },
+            767: {
+                slidesPerView: 'auto',
+                slidesPerGroup: 2,
+                spaceBetween: 0
+            },
+            370: {
+                slidesPerView: 'auto',
+                slidesPerGroup: 1,
+                spaceBetween: 0
+            }
+        },
+        navigation: {
+            nextEl: '.swiper-button-navigation-next',
+            prevEl: '.swiper-button-navigation-prev'
+        },
+        nextButton: '.swiper-button-navigation-next',
+        prevButton: '.swiper-button-navigation-prev'
+    });
+
+    // set slider for the campaign products
+    if (typeof store_campaign_products_show !== 'undefined') {
+        store_campaign_products_show.forEach(
+            function (a, b) {
+                this['swiperCampaignProducts' + b] = new Swiper(a + ' .swiper-container', {
+                    slidesPerView: 5,
+                    slidesPerGroup: 5,
+                    spaceBetween: 10,
+                    breakpoints: {
+                        1460: {
+                            slidesPerView: 4,
+                            slidesPerGroup: 4
+                        },
+                        1260: {
+                            slidesPerView: 3,
+                            slidesPerGroup: 3
+                        },
+                        992: {
+                            slidesPerView: 'auto',
+                            slidesPerGroup: 2,
+                            spaceBetween: 0
+                        },
+                        767: {
+                            slidesPerView: 'auto',
+                            slidesPerGroup: 2,
+                            spaceBetween: 0
+                        },
+                        370: {
+                            slidesPerView: 'auto',
+                            slidesPerGroup: 1,
+                            spaceBetween: 0
+                        }
+                    },
+                    navigation: {
+                        nextEl: a + ' .swiper-button-navigation-next',
+                        prevEl: a + ' .swiper-button-navigation-prev'
+                    },
+                    nextButton: a + ' .swiper-button-navigation-next',
+                    prevButton: a + ' .swiper-button-navigation-prev'
+                });
+            }
+        );
+    }
+
+    var swiperLatestProducts = new Swiper('.bringo-store-latest-products .swiper-container', {
+        slidesPerView: 5,
+        slidesPerGroup: 5,
+        spaceBetween: 10,
+        breakpoints: {
+            1460: {
+                slidesPerView: 4,
+                slidesPerGroup: 4
+            },
+            1260: {
+                slidesPerView: 3,
+                slidesPerGroup: 3
+            },
+            992: {
+                slidesPerView: 'auto',
+                slidesPerGroup: 2,
+                spaceBetween: 0
+            },
+            767: {
+                slidesPerView: 'auto',
+                slidesPerGroup: 2,
+                spaceBetween: 0
+            },
+            370: {
+                slidesPerView: 'auto',
+                slidesPerGroup: 1,
+                spaceBetween: 0
+            }
+        },
+        navigation: {
+            nextEl: '.bringo-store-latest-products .swiper-button-navigation-next',
+            prevEl: '.bringo-store-latest-products .swiper-button-navigation-prev'
+        },
+        nextButton: '.bringo-store-latest-products .swiper-button-navigation-next',
+        prevButton: '.bringo-store-latest-products .swiper-button-navigation-prev'
+    });
+
+    var swiperTopSales = new Swiper('.bringo-store-top-sales .swiper-container', {
+        slidesPerView: 5,
+        slidesPerGroup: 5,
+        spaceBetween: 10,
+        breakpoints: {
+            1460: {
+                slidesPerView: 4,
+                slidesPerGroup: 4
+            },
+            1260: {
+                slidesPerView: 3,
+                slidesPerGroup: 3
+            },
+            992: {
+                slidesPerView: 'auto',
+                slidesPerGroup: 2,
+                spaceBetween: 0
+            },
+            767: {
+                slidesPerView: 'auto',
+                slidesPerGroup: 2,
+                spaceBetween: 0
+            },
+            370: {
+                slidesPerView: 'auto',
+                slidesPerGroup: 1,
+                spaceBetween: 0
+            }
+        },
+        navigation: {
+            nextEl: '.bringo-store-top-sales .swiper-button-navigation-next',
+            prevEl: '.bringo-store-top-sales .swiper-button-navigation-prev'
+        },
+        nextButton: '.bringo-store-top-sales .swiper-button-navigation-next',
+        prevButton: '.bringo-store-top-sales .swiper-button-navigation-prev'
+    });
+
+    var swiperLatestProductsBought = new Swiper('.bringo-store-latest-products-bought .swiper-container', {
+        slidesPerView: 5,
+        slidesPerGroup: 5,
+        spaceBetween: 10,
+        breakpoints: {
+            1460: {
+                slidesPerView: 4,
+                slidesPerGroup: 4
+            },
+            1260: {
+                slidesPerView: 3,
+                slidesPerGroup: 3
+            },
+            992: {
+                slidesPerView: 'auto',
+                slidesPerGroup: 2,
+                spaceBetween: 0
+            },
+            767: {
+                slidesPerView: 'auto',
+                slidesPerGroup: 2,
+                spaceBetween: 0
+            },
+            370: {
+                slidesPerView: 'auto',
+                slidesPerGroup: 1,
+                spaceBetween: 0
+            }
+        },
+        navigation: {
+            nextEl: '.bringo-store-latest-products-bought .swiper-button-navigation-next',
+            prevEl: '.bringo-store-latest-products-bought .swiper-button-navigation-prev'
+        },
+        nextButton: '.bringo-store-latest-products-bought .swiper-button-navigation-next',
+        prevButton: '.bringo-store-latest-products-bought .swiper-button-navigation-prev'
+    });
+
+    var swiperLatestProductsWebview = new Swiper('.bringo-store-latest-products-webview .swiper-container', {
+        slidesPerView: 'auto'
+        //spaceBetween: 5,
+    });
+
+    var swiperTopSalesProductsWebview = new Swiper('.bringo-store-top-sales-webview .swiper-container', {
+        slidesPerView: 'auto'
+        //spaceBetween: 5,
+    });
+
+    var swiperMainCategoriesWebview = new Swiper('.bringo-store-products-subcategory .swiper-container', {
+        slidesPerView: 'auto'
+        //spaceBetween: 5,
+    });
+
+    var swiperShowProductImagesWebview = new Swiper('.show-product-details-container .product-image-carousel .swiper-container', {
+        pagination: {
+            el: '.swiper-pagination'
+        }
+    });
+
+    var swiperSimilarProductsWebview = new Swiper('.show-product-details-container .show-similar-products-container .swiper-container', {
+        slidesPerView: 'auto'
+        //spaceBetween: 5,
+    });
+
+    var swiperCategoriesListingWebview = new Swiper('.webview-topbar-categories .swiper-container', {
+        slidesPerView: 'auto'
+        //spaceBetween: 5,
+    });
+});

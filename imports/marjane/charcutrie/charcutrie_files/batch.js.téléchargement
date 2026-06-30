@@ -1,0 +1,68 @@
+var prompt_text;
+var first_button;
+var second_button;
+var privacy_button_text;
+var privacy_policy_link;
+
+/* Load remote Batch SDK JavaScript code */
+(function (b, a, t, c, h, e, r) {
+  h = "batchSDK";
+  b[h] =
+    b[h] ||
+    function () {
+      (b[h].q = b[h].q || []).push(arguments);
+    };
+  (e = a.createElement(t)), (r = a.getElementsByTagName(t)[0]);
+  e.async = 1;
+  e.src = c;
+  r.parentNode.insertBefore(e, r);
+})(window, document, "script", "https://via.batch.com/v4/bootstrap.min.js");
+
+/* Initiate Batch SDK opt-in UI configuration (native prompt) */
+var batchSDKUIConfig = {
+  native: {},
+};
+
+if (navigator.language == "fr" || navigator.language == "fr-FR") {
+  prompt_text = "Activez les notifications pour recevoir toutes nos offres personnalisées !";
+  first_button = "Je m'abonne";
+  second_button = "Non merci";
+}
+if (navigator.language == "en" || navigator.language == "en-EN") {
+  prompt_text = "Activate notifications to receive all our personalised offers !";
+  first_button = "I subscribe";
+  second_button = "No thanks";
+}
+if (navigator.language == "ar" || navigator.language == "ar-MA") {
+  prompt_text = "فعِّل الإشعارات لتلقي جميع عروضنا المخصصة !";
+  first_button = "أرغب في الاشتراك";
+  second_button = "لا شكراً";
+}
+
+/* Use a specific configuration for Firefox and Safari browsers (custom prompt) */
+if (
+  navigator.userAgent.indexOf("Firefox") !== -1 ||
+  (navigator.userAgent.indexOf("Safari") !== -1 && navigator.userAgent.indexOf("Chrome") === -1)
+) {
+  batchSDKUIConfig = {
+    alert: {
+      text: prompt_text,
+      positiveSubBtnLabel: first_button,
+      negativeBtnLabel: second_button,
+      positiveBtnStyle: {
+        backgroundColor: "#0055A6",
+        hoverBackgroundColor: "#0073E0",
+        textColor: "white",
+      },
+    },
+  };
+}
+
+/* Finalize the Batch SDK setup */
+batchSDK("setup", {
+  apiKey: "AFF2078DCE8B44FAABA0FDCA952E39FA",
+  subdomain: "marjane",
+  authKey: "2.g1hervwBS+V+OdEbdQbPsc/W9JzwBoNRG+Es+zHDVwo=",
+  vapidPublicKey: "BHh5t1YcXsVOeojvyf34S9stIZJlFprlmiItN76kDE/U7jEVidZcO52KuYORorMKcLszV7uTLPdp+kRnw9iDoBw=",
+  ui: batchSDKUIConfig,
+});
