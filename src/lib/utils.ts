@@ -15,7 +15,8 @@ export function formatMoney(value: number) {
   return new Intl.NumberFormat("fr-MA", {
     style: "currency",
     currency: "MAD",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   })
     .format(value)
     .replace("MAD", "DH");

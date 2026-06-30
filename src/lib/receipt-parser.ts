@@ -53,39 +53,103 @@ function parseMerchant(text: string) {
   return firstTextLine ?? "";
 }
 
-const amountPattern = /(^|[^\d])(\d{1,5}[.,]\d{1,2})(?!\d)/g;
-const totalHintPattern = /\b(total|ttc|net\s+a\s+payer|montant|a\s+payer|payer)\b/;
+export function extractReceiptAmount(ocrText: string): number | null {
+  if (!ocrText) return null;
 
-function extractDecimalAmounts(text: string) {
-  return [...text.matchAll(amountPattern)]
-    .map((match) => Number(match[2].replace(",", ".")))
-    .filter((value) => Number.isFinite(value) && value > 0 && value < 100000);
-}
+  const text = ocrText
+    .replace(/\u00A0/g, " ")
+    .replace(/[€$]/g, "")
+    .replace(/dh|mad/gi, "")
+    .replace(/[^\S\r\n]+/g, " ")
+    .trim();
 
-function parseAmount(text: string) {
-  const lines = text.split(/\r?\n/);
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
 
-  for (let index = lines.length - 1; index >= 0; index -= 1) {
-    const line = lines[index];
+  const amountRegex = /\b\d{1,6}(?:[.,]\d{2})\b/g;
 
-    if (!totalHintPattern.test(normalizeText(line))) {
-      continue;
-    }
+  const parseAmount = (value: string): number => Number(value.replace(",", "."));
 
-    const lineAmounts = extractDecimalAmounts(line);
+  const getAmounts = (line: string): number[] => {
+    const matches = line.match(amountRegex) || [];
+    return matches.map(parseAmount).filter((amount) => Number.isFinite(amount));
+  };
 
-    if (lineAmounts.length > 0) {
-      return lineAmounts[lineAmounts.length - 1];
+  const totalKeywords = [
+    "TOTAL",
+    "NET A PAYER",
+    "NET À PAYER",
+    "MONTANT A PAYER",
+    "MONTANT À PAYER",
+    "A PAYER",
+    "À PAYER",
+  ];
+
+  const forbiddenTotalKeywords = [
+    "HT",
+    "TVA",
+    "TAXE",
+    "SOUS TOTAL",
+    "SOUS-TOTAL",
+    "SUBTOTAL",
+    "REMISE",
+    "DISCOUNT",
+    "RENDU",
+    "CHANGE",
+    "EXONERE",
+    "EXONÉRÉ",
+    "EXONERER",
+  ];
+  const forbiddenKeywords = [...forbiddenTotalKeywords, "TTC"];
+
+  const normalize = (line: string): string =>
+    line
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase();
+
+  for (const line of lines) {
+    const normalizedLine = normalize(line);
+
+    const hasTotalKeyword = totalKeywords.some((keyword) => normalizedLine.includes(normalize(keyword)));
+    const hasForbiddenKeyword = forbiddenTotalKeywords.some((keyword) => normalizedLine.includes(normalize(keyword)));
+
+    if (hasTotalKeyword && !hasForbiddenKeyword) {
+      const amounts = getAmounts(line);
+      if (amounts.length > 0) {
+        return amounts[amounts.length - 1];
+      }
     }
   }
 
-  const amountMatches = extractDecimalAmounts(text);
+  const paymentKeywords = ["ESPECES", "ESPÈCES", "CASH", "CARTE", "CB", "VISA", "MASTERCARD"];
+  for (const line of lines) {
+    const normalizedLine = normalize(line);
 
-  if (amountMatches.length === 0) {
-    return "";
+    const hasPaymentKeyword = paymentKeywords.some((keyword) => normalizedLine.includes(normalize(keyword)));
+    const hasForbiddenKeyword = forbiddenKeywords.some((keyword) => normalizedLine.includes(normalize(keyword)));
+
+    if (hasPaymentKeyword && !hasForbiddenKeyword) {
+      const amounts = getAmounts(line);
+      if (amounts.length > 0) {
+        return amounts[amounts.length - 1];
+      }
+    }
   }
 
-  return Math.max(...amountMatches);
+  const allAmounts = lines
+    .filter((line) => {
+      const normalizedLine = normalize(line);
+      return !forbiddenKeywords.some((keyword) => normalizedLine.includes(normalize(keyword)));
+    })
+    .flatMap(getAmounts)
+    .filter((amount) => amount > 0 && amount < 1000000);
+
+  if (allAmounts.length === 0) return null;
+
+  return Math.max(...allAmounts);
 }
 
 function parseCategory(text: string, merchant: string) {
@@ -138,7 +202,7 @@ export function parseReceiptText(text: string): ParsedReceipt {
   const marchand = parseMerchant(text);
 
   return {
-    montant: parseAmount(text),
+    montant: extractReceiptAmount(text) ?? "",
     date: parseDate(text),
     marchand,
     categorie: parseCategory(text, marchand),
