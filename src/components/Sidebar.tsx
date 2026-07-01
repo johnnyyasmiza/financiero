@@ -13,6 +13,7 @@ export const appLinks = [
   { href: "/frigo", label: "Mon Frigo", icon: "FR" },
   { href: "/comparateur", label: "Comparateur", icon: "CP" },
   { href: "/recettes", label: "Recettes", icon: "RE" },
+  { href: "/integrations/marjane", label: "Marjane Connect", icon: "MJ" },
   { href: "/scan", label: "Scan facture", icon: "SC" },
   { href: "/factures", label: "Factures", icon: "F" },
   { href: "/patrimoine", label: "Patrimoine", icon: "P" },
