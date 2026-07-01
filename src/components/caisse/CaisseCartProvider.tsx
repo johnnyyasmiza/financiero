@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addExpense } from "@/lib/finance-db";
-import { addNeeds, getProducts, subscribeToProducts, type ShoppingProduct } from "@/lib/shopping-catalog";
+import { addNeeds, ensureProductExistsForStock, getProducts, subscribeToProducts, type ShoppingProduct } from "@/lib/shopping-catalog";
 import { formatCaissePrice } from "@/lib/caisse-config";
 import { getTodayDate } from "@/lib/utils";
 import { addFridgeItems } from "@/lib/fridge";
@@ -144,11 +144,12 @@ export function CaisseCartProvider({ children }: { children: React.ReactNode }) 
       });
 
       try {
-        await addFridgeItems(
-          cart.map((item) => {
+        const fridgePayload = await Promise.all(
+          cart.map(async (item) => {
+            const productForStock = await ensureProductExistsForStock(item.product);
             const unitQuantity = item.product.unitQuantity ?? 1;
             return {
-              productId: item.product.id,
+              productId: productForStock?.id ?? null,
               store: item.product.store,
               category: item.product.category,
               name: item.product.name,
@@ -165,6 +166,7 @@ export function CaisseCartProvider({ children }: { children: React.ReactNode }) 
             };
           }),
         );
+        await addFridgeItems(fridgePayload);
       } catch (stockError) {
         setError(`Depense creee (${expense.merchant || "courses"} - ${formatCaissePrice(expense.amount)}), mais le stock n'a pas ete ajoute.\n${stockError instanceof Error ? stockError.message : "Erreur stock inconnue."}`);
         return;
@@ -172,13 +174,14 @@ export function CaisseCartProvider({ children }: { children: React.ReactNode }) 
 
       setCart([]);
       setSuccess("Achat valide : depense + stock ajoutes.");
+      reloadProducts();
       router.refresh();
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Impossible de valider les courses.");
     } finally {
       setIsSaving(false);
     }
-  }, [cart, router, total]);
+  }, [cart, reloadProducts, router, total]);
 
   const saveForLater = useCallback(async () => {
     if (cart.length === 0) {

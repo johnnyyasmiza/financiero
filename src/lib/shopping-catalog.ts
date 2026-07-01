@@ -1,4 +1,5 @@
 import { normalizeProductName } from "@/lib/price-comparison";
+import { ensureProductExists } from "@/lib/products/ensure-product";
 import { supabase } from "@/lib/supabase";
 import { cacheData, enqueueOfflineOperation, getCachedData, isNetworkError, isOnline, notifyOfflineStatus } from "@/lib/offline-store";
 
@@ -214,6 +215,27 @@ export async function addProduct(product: ShoppingProductInput) {
   }
 
   return inserted;
+}
+
+export async function ensureProductExistsForStock(product: ShoppingProduct) {
+  const productId = await ensureProductExists({
+    id: product.id,
+    store: product.store,
+    category: product.category,
+    name: product.name,
+    imageUrl: product.imageUrl,
+    price: product.price,
+    unit: product.unit,
+    unitQuantity: product.unitQuantity,
+    unitBase: product.unitBase,
+    pricePerBaseUnit: product.pricePerBaseUnit,
+    sourceUrl: product.sourceUrl,
+  });
+
+  if (!productId) return null;
+  const { data, error } = await supabase.from("products").select("*").eq("id", productId).maybeSingle();
+  if (error || !data) return null;
+  return toProduct(data as ProductRow);
 }
 
 export async function updateProduct(id: string, product: ShoppingProductInput) {

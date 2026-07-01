@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { BottomNavigation, Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
-import { useAdminAccess } from "@/lib/admin-access-store";
+import { useAdminAccessStatus } from "@/lib/admin-access-store";
 
 export function ProtectedAppShell({
   children,
@@ -16,20 +16,20 @@ export function ProtectedAppShell({
   subtitle?: string;
 }) {
   const router = useRouter();
-  const isAllowed = useAdminAccess();
+  const { hasAccess, isChecking } = useAdminAccessStatus();
 
   useEffect(() => {
-    if (!isAllowed) {
+    if (!isChecking && !hasAccess) {
       router.replace("/");
     }
-  }, [isAllowed, router]);
+  }, [hasAccess, isChecking, router]);
 
-  if (!isAllowed) {
+  if (isChecking || !hasAccess) {
     return (
       <div className="grid min-h-screen place-items-center bg-black px-4 text-center text-zinc-300">
         <div>
           <div className="mx-auto mb-4 grid size-11 place-items-center rounded-lg bg-emerald-400 font-black text-black">F</div>
-          <p className="text-sm">Verification de l&apos;acces prive...</p>
+          <p className="text-sm">Verification de l&apos;acces local...</p>
         </div>
       </div>
     );

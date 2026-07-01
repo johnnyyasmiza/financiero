@@ -1,5 +1,6 @@
 import { getTodayDate } from "@/lib/utils";
 import { normalizeCaisseKey } from "@/lib/caisse-config";
+import { ensureProductExists } from "@/lib/products/ensure-product";
 import { supabase } from "@/lib/supabase";
 
 export type FridgeUnit = "g" | "kg" | "ml" | "l" | "piece" | "pack";
@@ -356,6 +357,17 @@ export function findFridgeItemById(itemId: string, items = getFridgeItems()) {
 }
 
 export async function addFridgeItem(input: FridgeItemInput) {
+  const productId = await ensureProductExists({
+    productId: input.productId,
+    store: input.store,
+    category: input.category,
+    name: input.name,
+    imageUrl: input.imageUrl,
+    price: input.purchasePrice ?? input.totalPrice ?? null,
+    unit: input.unit,
+    unitQuantity: input.unitQuantity,
+    sourceUrl: null,
+  });
   const unit = normalizeUnit(1, input.unit ?? "piece").unit;
   const quantity = input.quantity && input.quantity > 0 ? input.quantity : input.quantityPieces && input.quantityPieces > 0 ? input.quantityPieces : 1;
   const unitQuantity = input.unitQuantity && input.unitQuantity > 0 ? input.unitQuantity : input.quantityWeight && input.quantityWeight > 0 ? input.quantityWeight : 1;
@@ -367,7 +379,7 @@ export async function addFridgeItem(input: FridgeItemInput) {
   const now = getTodayDate();
   const incoming = enrichItem({
     id: createId(),
-    productId: isUuid(input.productId) ? input.productId : null,
+    productId,
     store: input.store ?? null,
     name: titleCase(input.name),
     category: normalizeFridgeCategory(input.category || inferCategory(input.name)),
@@ -403,14 +415,25 @@ export async function addFridgeItems(items: FridgeItemInput[]) {
   }
 
   const now = getTodayDate();
-  const payload = items.map((input) => {
+  const payload = await Promise.all(items.map(async (input) => {
+    const productId = await ensureProductExists({
+      productId: input.productId,
+      store: input.store,
+      category: input.category,
+      name: input.name,
+      imageUrl: input.imageUrl,
+      price: input.purchasePrice ?? input.totalPrice ?? null,
+      unit: input.unit,
+      unitQuantity: input.unitQuantity,
+      sourceUrl: null,
+    });
     const quantity = input.quantity && input.quantity > 0 ? input.quantity : input.quantityPieces && input.quantityPieces > 0 ? input.quantityPieces : 1;
     const unitQuantity = input.unitQuantity && input.unitQuantity > 0 ? input.unitQuantity : 1;
     const totalQuantity = input.totalQuantity ?? quantity * unitQuantity;
     const initialQuantity = input.initialQuantity ?? totalQuantity ?? quantity ?? 1;
     const remainingQuantity = input.remainingQuantity ?? totalQuantity ?? quantity ?? 1;
     return {
-      product_id: isUuid(input.productId) ? input.productId : null,
+      product_id: productId,
       store: input.store || null,
       category: normalizeFridgeCategory(input.category),
       name: input.name,
@@ -427,7 +450,7 @@ export async function addFridgeItems(items: FridgeItemInput[]) {
       status: remainingQuantity <= 0 ? "epuise" : "en_stock",
       updated_at: new Date().toISOString(),
     };
-  });
+  }));
 
   const { data, error } = await supabase.from("fridge_items").insert(payload).select("*");
   if (error) throwFridgeError(error);

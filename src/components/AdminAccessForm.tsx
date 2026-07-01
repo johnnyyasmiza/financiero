@@ -2,21 +2,21 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { grantAdminAccess, useAdminAccess } from "@/lib/admin-access-store";
+import { grantAdminAccess, useAdminAccessStatus } from "@/lib/admin-access-store";
 
 const ADMIN_CODE = "19831983";
 
 export function AdminAccessForm() {
   const router = useRouter();
-  const hasAccess = useAdminAccess();
+  const { hasAccess, isChecking } = useAdminAccessStatus();
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (hasAccess) {
+    if (!isChecking && hasAccess) {
       router.replace("/dashboard");
     }
-  }, [hasAccess, router]);
+  }, [hasAccess, isChecking, router]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -28,6 +28,17 @@ export function AdminAccessForm() {
     }
 
     setError("Code incorrect");
+  }
+
+  if (isChecking) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-black px-4 text-center text-zinc-300">
+        <div>
+          <div className="mx-auto mb-4 grid size-11 place-items-center rounded-lg bg-emerald-400 font-black text-black">F</div>
+          <p className="text-sm">Verification de l&apos;acces local...</p>
+        </div>
+      </main>
+    );
   }
 
   return (
