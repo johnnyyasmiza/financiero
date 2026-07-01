@@ -1,10 +1,31 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
+import { prepareRecipe } from "@/lib/prepare-recipe";
 import { type Recipe, type RecipeCategory } from "@/lib/recipes";
 import { cn } from "@/lib/utils";
 
 export function RecipeCategoryClient({ category, recipes }: { category: RecipeCategory; recipes: Recipe[] }) {
+  const [preparingId, setPreparingId] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  async function prepareFromCard(recipeId: string) {
+    setPreparingId(recipeId);
+    setMessage("");
+    setError("");
+
+    try {
+      const result = await prepareRecipe(recipeId);
+      setMessage(result.message);
+    } catch (prepareError) {
+      setError(prepareError instanceof Error ? prepareError.message : "Impossible de preparer la recette.");
+    } finally {
+      setPreparingId(null);
+    }
+  }
+
   return (
     <div className="space-y-5">
       <section className={cn("rounded-lg border-2 bg-gradient-to-br p-5 shadow-sm", category.accent, category.bg)}>
@@ -26,6 +47,9 @@ export function RecipeCategoryClient({ category, recipes }: { category: RecipeCa
         </div>
       </section>
 
+      {error ? <p className="whitespace-pre-line rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p> : null}
+      {message ? <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">{message}</p> : null}
+
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {recipes.length === 0 ? (
           <div className="col-span-full rounded-lg border border-dashed border-zinc-300 bg-white p-10 text-center shadow-sm">
@@ -34,7 +58,8 @@ export function RecipeCategoryClient({ category, recipes }: { category: RecipeCa
           </div>
         ) : null}
         {recipes.map((recipe) => (
-          <Link key={recipe.id} href={`/recettes/${recipe.id}`} className="rounded-lg border border-blue-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-blue-400 hover:shadow-lg active:scale-[0.98]">
+          <article key={recipe.id} className="rounded-lg border border-blue-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-blue-400 hover:shadow-lg">
+            <Link href={`/recettes/${recipe.id}`} className="block active:scale-[0.98]">
             <div className="flex items-start justify-between gap-3">
               <span className="inline-flex rounded-lg bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{recipe.category}</span>
               <span className="text-xs font-black text-zinc-400">{recipe.baseServings} pers.</span>
@@ -48,7 +73,11 @@ export function RecipeCategoryClient({ category, recipes }: { category: RecipeCa
                 </span>
               ))}
             </div>
-          </Link>
+            </Link>
+            <button type="button" onClick={() => void prepareFromCard(recipe.id)} disabled={preparingId === recipe.id} className="mt-4 h-11 w-full rounded-lg bg-amber-400 px-4 text-sm font-black text-black transition hover:bg-amber-300 disabled:bg-zinc-300">
+              {preparingId === recipe.id ? "Preparation..." : "Préparer"}
+            </button>
+          </article>
         ))}
       </section>
     </div>

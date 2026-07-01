@@ -3,10 +3,10 @@ import {
   addFridgeItem,
   consumeFridgeItem,
   normalizeUnit,
-  prepareRecipe,
   type FridgeRecipeIngredient,
   type FridgeUnit,
 } from "@/lib/fridge";
+import { prepareRecipe } from "@/lib/prepare-recipe";
 import { addOrIncrementNeed } from "@/lib/shopping-catalog";
 import { getTodayDate } from "@/lib/utils";
 
@@ -198,22 +198,12 @@ export async function handleNeed(input: string): Promise<AutomationResult> {
 }
 
 export async function handlePrepareRecipe(recipeId: string): Promise<AutomationResult> {
-  const recipe = getRecipeById(recipeId);
-  if (!recipe) throw new Error("Recette introuvable.");
-  const result = prepareRecipe(recipe.ingredients);
-  if (!result.ok) {
-    return { message: `Il manque : ${result.cost.missing.map((line) => line.ingredient.name).join(", ")}`, missing: result.cost.missing.map((line) => line.ingredient), sourceType: "recipe_cost_internal" };
-  }
-  await addExpense({
-    amount: result.cost.totalCost,
-    merchant: recipe.name,
-    category: "Cuisine / Repas maison",
-    payment: "Interne",
-    note: `sourceType: recipe_cost_internal\nCout estime recette, sans impact solde`,
-    date: getTodayDate(),
+  const result = await prepareRecipe(recipeId);
+  return {
+    message: result.message,
+    missing: result.missing.map((line) => ({ name: line.name, amount: line.missing, unit: line.unit })),
     sourceType: "recipe_cost_internal",
-  });
-  return { message: `${recipe.name} disponible avec le stock actuel`, amount: result.cost.totalCost, category: "Cuisine / Repas maison", sourceType: "recipe_cost_internal" };
+  };
 }
 
 export async function addFoodPurchaseToFridge(input: { name: string; quantity: number; unit: string; totalPrice: number }) {

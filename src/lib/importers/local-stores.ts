@@ -11,11 +11,20 @@ const STORE_NAMES: Record<string, string> = {
   carrefour: "Carrefour",
   "boucherie-amsterdam": "Boucherie Amsterdam",
   "boucherie amsterdam": "Boucherie Amsterdam",
+  boucherie_amsterdam: "Boucherie Amsterdam",
+  amsterdam: "Boucherie Amsterdam",
   hri: "HRI",
   swika: "Swika",
 };
 
 const EXPECTED_STORE_KEYS = ["marjane", "carrefour", "boucherie-amsterdam", "hri", "swika"] as const;
+const STORE_DIR_ALIASES: Record<(typeof EXPECTED_STORE_KEYS)[number], string[]> = {
+  marjane: ["marjane"],
+  carrefour: ["carrefour"],
+  "boucherie-amsterdam": ["boucherie-amsterdam", "boucherie-amsterdam", "amsterdam"],
+  hri: ["hri"],
+  swika: ["swika"],
+};
 
 const STORE_ORIGINS: Record<string, string> = {
   Marjane: "https://www.marjane.ma",
@@ -33,7 +42,7 @@ const EXPECTED_CATEGORIES = [
   { keys: ["fruits"], categoryKey: "fruits", label: "Fruits" },
   { keys: ["legumes"], categoryKey: "legumes", label: "Légumes" },
   { keys: ["viande", "viandes"], categoryKey: "viande", label: "Viande" },
-  { keys: ["volaille", "volailles"], categoryKey: "volaille", label: "Volaille" },
+  { keys: ["volaille", "volailles", "poulet", "poulets", "dinde", "dindes"], categoryKey: "volaille", label: "Volaille" },
 ] as const;
 
 type LocalProduct = {
@@ -508,7 +517,7 @@ async function getImportDiagnosticsWithContexts(): Promise<ImportDiagnosticWithC
   const diagnostics: ImportDiagnosticWithContext[] = [];
 
   for (const expectedStoreKey of EXPECTED_STORE_KEYS) {
-    const resolvedStoreEntry = storeByKey.get(expectedStoreKey);
+    const resolvedStoreEntry = STORE_DIR_ALIASES[expectedStoreKey].map((alias) => storeByKey.get(alias)).find(Boolean);
     const storeKey = expectedStoreKey;
     const store = STORE_NAMES[storeKey] ?? resolvedStoreEntry?.name ?? storeKey;
 

@@ -1,4 +1,4 @@
-import { getRecipeById, inferExpenseCategory } from "@/lib/automationFlow";
+import { inferExpenseCategory } from "@/lib/automationFlow";
 import { addExpense } from "@/lib/finance-db";
 import {
   addFridgeItem,
@@ -6,8 +6,8 @@ import {
   findFridgeItem,
   loadFridgeItems,
   normalizeUnit,
-  type FridgeRecipeIngredient,
 } from "@/lib/fridge";
+import { prepareRecipe } from "@/lib/prepare-recipe";
 import { addOrIncrementNeed } from "@/lib/shopping-catalog";
 import { getTodayDate } from "@/lib/utils";
 
@@ -312,62 +312,6 @@ function fridgePayloadFromQuantity(intent: Extract<VoiceIntent, { type: "fridge_
   };
 }
 
-async function executeRecipe(intent: Extract<VoiceIntent, { type: "recipe_prepare" }>) {
-  const recipe = getRecipeById(intent.recipeName);
-  if (!recipe) throw new Error("Recette introuvable.");
-
-  await loadFridgeItems();
-  const consumed: string[] = [];
-  const missing: FridgeRecipeIngredient[] = [];
-
-  for (const ingredient of recipe.ingredients) {
-    const item = findFridgeItem(ingredient.name);
-    const normalized = normalizeUnit(ingredient.amount, ingredient.unit);
-
-    if (!item) {
-      missing.push(ingredient);
-      await addOrIncrementNeed({
-        productId: null,
-        store: "Recette",
-        category: inferProductCategory(ingredient.name),
-        name: ingredient.name,
-        imageUrl: null,
-        unit: normalized.unit,
-        quantity: normalized.value,
-        unitPrice: null,
-        total: null,
-      });
-      continue;
-    }
-
-    const available = item.remainingQuantity ?? item.totalQuantity ?? (item.quantity ?? 1) * (item.unitQuantity ?? 1);
-    const used = Math.min(available, normalized.value);
-
-    if (used > 0) {
-      await consumeFridgeItemById(item.id, used, normalized.unit);
-      consumed.push(item.name);
-    }
-
-    if (available < normalized.value) {
-      const missingAmount = normalized.value - available;
-      missing.push({ ...ingredient, amount: missingAmount, unit: normalized.unit });
-      await addOrIncrementNeed({
-        productId: null,
-        store: "Recette",
-        category: inferProductCategory(ingredient.name),
-        name: ingredient.name,
-        imageUrl: null,
-        unit: normalized.unit,
-        quantity: missingAmount,
-        unitPrice: null,
-        total: null,
-      });
-    }
-  }
-
-  return `Recette preparee : ${recipe.name}. Stock diminue${consumed.length ? ` (${consumed.join(", ")})` : ""}.${missing.length ? ` ${missing.length} produit(s) manquant(s) ajoute(s) aux besoins.` : ""}`;
-}
-
 export async function executeVoiceIntent(intent: VoiceIntent): Promise<VoiceIntentResult> {
   if (intent.type === "unknown") {
     throw new Error(`${intent.reason} Essaie par exemple : "Ajoute au frigo 4 Danone" ou "Il me faut du lait".`);
@@ -414,7 +358,8 @@ export async function executeVoiceIntent(intent: VoiceIntent): Promise<VoiceInte
   }
 
   if (intent.type === "recipe_prepare") {
-    return { intent, message: await executeRecipe(intent) };
+    const result = await prepareRecipe(intent.recipeName);
+    return { intent, message: result.message };
   }
 
   await addOrIncrementNeed({

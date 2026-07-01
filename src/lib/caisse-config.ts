@@ -34,13 +34,28 @@ const categoryAliases: Record<string, CaisseCategoryKey> = {
   legumes: "legumes",
   viande: "viande",
   viandes: "viande",
+  poulet: "volaille",
+  poulets: "volaille",
+  dinde: "volaille",
+  dindes: "volaille",
   volaille: "volaille",
   volailles: "volaille",
+};
+
+const storeAliases: Record<string, string> = {
+  amsterdam: "boucherie-amsterdam",
+  boucherieamsterdam: "boucherie-amsterdam",
+  boucherie: "boucherie-amsterdam",
+  carrefour: "carrefour",
+  hri: "hri",
+  marjane: "marjane",
+  swika: "swika",
 };
 
 const fallbackStoreCategories: Record<string, CaisseCategoryKey[]> = {
   marjane: ["bebe", "charcuterie", "epicerie", "fromage", "fruits", "legumes", "viande", "volaille"],
   carrefour: ["bebe", "charcuterie", "epicerie", "fromage", "fruits", "legumes", "viande", "volaille"],
+  "boucherie-amsterdam": ["viande", "volaille", "charcuterie", "fromage", "epicerie"],
 };
 
 const logoExtensions = [".png", ".jpg", ".jpeg", ".webp", ".svg"] as const;
@@ -51,6 +66,7 @@ const knownLogoFiles = new Set([
   "fromage.png",
   "fruits.png",
   "legumes.png",
+  "poulet.png",
   "viande.png",
   "volaille.png",
 ]);
@@ -76,15 +92,31 @@ export function normalizeCaisseKey(value: string) {
   return categoryAliases[compact] ?? compact;
 }
 
+export function normalizeStoreKey(value: string) {
+  const compact = value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+
+  return storeAliases[compact] ?? value.toLowerCase();
+}
+
 export function findLogo(categoryKey: string) {
   const key = normalizeCaisseKey(categoryKey);
   const fileName = key === "charcuterie" ? "charcutrie" : key;
-  const match = logoExtensions.map((extension) => `${fileName}${extension}`).find((candidate) => knownLogoFiles.has(candidate));
+  const candidates = key === "volaille"
+    ? [fileName, "poulet"]
+    : [fileName];
+  const match = candidates
+    .flatMap((candidate) => logoExtensions.map((extension) => `${candidate}${extension}`))
+    .find((candidate) => knownLogoFiles.has(candidate));
   return `/logo/${match ?? `${fileName}.png`}`;
 }
 
 export function getStoreByKey(key: string | null | undefined) {
-  return caisseStores.find((store) => store.key === key) ?? null;
+  const normalizedKey = key ? normalizeStoreKey(key) : null;
+  return caisseStores.find((store) => store.key === normalizedKey) ?? null;
 }
 
 export function getStoreByName(name: string | null | undefined) {

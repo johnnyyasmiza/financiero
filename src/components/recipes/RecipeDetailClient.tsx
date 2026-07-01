@@ -8,6 +8,7 @@ import { formatCaissePrice } from "@/lib/caisse-config";
 import { matchRecipeIngredient } from "@/lib/recipe-matcher";
 import { generateRecipeVariants } from "@/lib/recipes/seed-recipes";
 import { getRecipeCategory, type Recipe, servingOptions } from "@/lib/recipes";
+import { prepareRecipe } from "@/lib/prepare-recipe";
 import { addNeeds, getProducts, saveRecipeIngredientProduct, type ShoppingProduct } from "@/lib/shopping-catalog";
 import { loadFridgeItems, normalizeFridgeName, type FridgeItem } from "@/lib/fridge";
 import { getTodayDate } from "@/lib/utils";
@@ -78,6 +79,7 @@ export function RecipeDetailClient({ recipe }: { recipe: Recipe }) {
   const [selectedProducts, setSelectedProducts] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isPreparing, setIsPreparing] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -175,6 +177,22 @@ export function RecipeDetailClient({ recipe }: { recipe: Recipe }) {
     }
   }
 
+  async function prepareCurrentRecipe() {
+    setIsPreparing(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const result = await prepareRecipe(recipe.id, { servings });
+      setMessage(result.message);
+      setFridgeItems(await loadFridgeItems());
+    } catch (prepareError) {
+      setError(prepareError instanceof Error ? prepareError.message : "Impossible de preparer la recette.");
+    } finally {
+      setIsPreparing(false);
+    }
+  }
+
   return (
     <div className="space-y-5">
       <section className="rounded-lg border border-blue-100 bg-white p-5 shadow-sm">
@@ -193,7 +211,10 @@ export function RecipeDetailClient({ recipe }: { recipe: Recipe }) {
               <p className="mt-2 text-sm text-zinc-500">Priorite aux prix Marjane. Aucun achat n&apos;est valide depuis les recettes.</p>
             </div>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-2 sm:grid-cols-3">
+            <button type="button" onClick={() => void prepareCurrentRecipe()} disabled={isLoading || isPreparing} className="h-12 rounded-lg bg-amber-400 px-5 font-black text-black transition hover:bg-amber-300 disabled:bg-zinc-300">
+              {isPreparing ? "Preparation..." : "Préparer"}
+            </button>
             <button type="button" onClick={addToCaisse} disabled={isLoading} className="h-12 rounded-lg bg-blue-600 px-5 font-black text-white transition hover:bg-blue-700 disabled:bg-zinc-300">
               Ajouter a la caisse
             </button>

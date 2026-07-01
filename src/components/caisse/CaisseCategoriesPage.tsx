@@ -24,7 +24,14 @@ export function CaisseCategoriesPage({ storeKey }: { storeKey: string }) {
       .map((product) => normalizeCaisseKey(product.category)),
   );
   getFallbackCategoryKeys(store.key).forEach((categoryKey) => availableCategoryKeys.add(categoryKey));
-  const visibleCategories = caisseCategories.filter((category) => availableCategoryKeys.has(category.key));
+  const fallbackCategoryKeys = getFallbackCategoryKeys(store.key);
+  const orderedCategoryKeys = [
+    ...fallbackCategoryKeys,
+    ...caisseCategories.map((category) => category.key).filter((categoryKey) => !fallbackCategoryKeys.includes(categoryKey)),
+  ];
+  const visibleCategories = orderedCategoryKeys
+    .map((categoryKey) => caisseCategories.find((category) => category.key === categoryKey))
+    .filter((category): category is (typeof caisseCategories)[number] => Boolean(category && availableCategoryKeys.has(category.key)));
 
   return (
     <div className="space-y-5">
