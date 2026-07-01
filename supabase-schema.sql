@@ -1,13 +1,19 @@
+create extension if not exists pgcrypto;
+
 create table if not exists public.expenses (
-  id text primary key,
+  id uuid primary key default gen_random_uuid(),
   merchant text,
   category text not null,
   amount numeric not null,
-  date date not null,
-  payment text not null,
+  expense_date date not null default current_date,
+  payment_method text not null default 'Carte',
   note text,
   created_at timestamptz not null default now()
 );
+
+alter table public.expenses add column if not exists expense_date date default current_date;
+alter table public.expenses add column if not exists payment_method text default 'Carte';
+alter table public.expenses add column if not exists note text;
 
 create table if not exists public.revenues (
   id text primary key,

@@ -20,6 +20,7 @@ export type Expense = {
   date: string;
   payment: string;
   note?: string;
+  sourceType?: "purchase" | "receipt" | "voice" | "recipe_cost_internal";
 };
 
 export type Income = {
@@ -47,6 +48,8 @@ export type Asset = {
 export const expenseCategories = [
   "Maison",
   "Alimentation",
+  "Courses",
+  "Cuisine / Repas maison",
   "Eau",
   "Electricite",
   "Internet",
@@ -59,6 +62,7 @@ export const expenseCategories = [
   "Voiture",
   "Moto",
   "Sante",
+  "Tabac",
   "Loisirs",
   "Autre",
 ];

@@ -1,4 +1,6 @@
 import { seedRecipes } from "@/lib/recipes/seed-recipes";
+import { calculateRecipeCost as calculateInventoryRecipeCost, prepareRecipe as prepareInventoryRecipe } from "@/lib/fridge";
+import type { FridgeRecipeCost as RecipeCostResult, FridgeRecipeIngredient as RecipeIngredientInput, FridgeUnit } from "@/lib/fridge";
 
 export type RecipeIngredient = {
   name: string;
@@ -27,6 +29,21 @@ export type RecipeCategory = {
   bg: string;
 };
 
+export type HouseRecipe = {
+  id: string;
+  name: string;
+  portions: number;
+  ingredients: RecipeIngredientInput[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type HouseRecipeInput = {
+  name: string;
+  portions: number;
+  ingredients: RecipeIngredientInput[];
+};
+
 export const recipeCategories: RecipeCategory[] = [
   { name: "Tajines", slug: "tajine", logo: "/logo/tajine.png", accent: "border-yellow-500", bg: "from-yellow-50 to-white" },
   { name: "Pates", slug: "pates", logo: "/logo/pates.png", accent: "border-emerald-500", bg: "from-emerald-50 to-white" },
@@ -43,6 +60,8 @@ export const recipeCategories: RecipeCategory[] = [
 
 export const servingOptions = [1, 2, 4, 6, 8];
 export const recipes: Recipe[] = seedRecipes;
+const HOUSE_RECIPES_STORAGE_KEY = "financiero:house-recipes";
+const HOUSE_RECIPES_EVENT = "financiero-house-recipes-change";
 
 export function getRecipe(id: string) {
   return recipes.find((recipe) => recipe.id === id) ?? null;
@@ -73,4 +92,92 @@ export function getRecipesByCategory(slug: string) {
   }
 
   return recipes.filter((recipe) => recipe.categorySlug === normalizedSlug);
+}
+
+function canUseStorage() {
+  return typeof window !== "undefined" && "localStorage" in window;
+}
+
+function createId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function notifyHouseRecipesChange() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(HOUSE_RECIPES_EVENT));
+  }
+}
+
+function readHouseRecipes() {
+  if (!canUseStorage()) {
+    return [] as HouseRecipe[];
+  }
+
+  try {
+    return JSON.parse(window.localStorage.getItem(HOUSE_RECIPES_STORAGE_KEY) ?? "[]") as HouseRecipe[];
+  } catch {
+    return [];
+  }
+}
+
+function writeHouseRecipes(items: HouseRecipe[]) {
+  if (!canUseStorage()) {
+    return;
+  }
+
+  window.localStorage.setItem(HOUSE_RECIPES_STORAGE_KEY, JSON.stringify(items));
+  notifyHouseRecipesChange();
+}
+
+export function subscribeToHouseRecipes(onChange: () => void) {
+  if (typeof window === "undefined") {
+    return () => undefined;
+  }
+
+  window.addEventListener(HOUSE_RECIPES_EVENT, onChange);
+  window.addEventListener("storage", onChange);
+
+  return () => {
+    window.removeEventListener(HOUSE_RECIPES_EVENT, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+
+export function getHouseRecipes() {
+  return readHouseRecipes().sort((first, second) => second.updatedAt.localeCompare(first.updatedAt));
+}
+
+export function addHouseRecipe(input: HouseRecipeInput) {
+  const now = new Date().toISOString();
+  const recipe: HouseRecipe = {
+    id: createId(),
+    name: input.name.trim(),
+    portions: Number(input.portions),
+    ingredients: input.ingredients.map((ingredient) => ({
+      name: ingredient.name.trim(),
+      amount: Number(ingredient.amount),
+      unit: ingredient.unit as FridgeUnit,
+    })),
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  writeHouseRecipes([recipe, ...readHouseRecipes()]);
+  return recipe;
+}
+
+export function deleteHouseRecipe(id: string) {
+  writeHouseRecipes(readHouseRecipes().filter((recipe) => recipe.id !== id));
+}
+
+export function calculateRecipeCost(recipe: HouseRecipe): RecipeCostResult {
+  return calculateInventoryRecipeCost(recipe.ingredients);
+}
+
+export function prepareRecipe(recipe: HouseRecipe): RecipeCostResult {
+  return prepareInventoryRecipe(recipe.ingredients).cost;
 }

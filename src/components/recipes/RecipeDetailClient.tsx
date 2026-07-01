@@ -9,6 +9,7 @@ import { matchRecipeIngredient } from "@/lib/recipe-matcher";
 import { generateRecipeVariants } from "@/lib/recipes/seed-recipes";
 import { getRecipeCategory, type Recipe, servingOptions } from "@/lib/recipes";
 import { addNeeds, getProducts, saveRecipeIngredientProduct, type ShoppingProduct } from "@/lib/shopping-catalog";
+import { loadFridgeItems, normalizeFridgeName, type FridgeItem } from "@/lib/fridge";
 import { getTodayDate } from "@/lib/utils";
 
 type IngredientChoice = {
@@ -19,6 +20,7 @@ type IngredientChoice = {
   cost: number | null;
   warning: string | null;
   candidates: ShoppingProduct[];
+  alreadyInFridge: boolean;
 };
 
 function readCart() {
@@ -63,6 +65,7 @@ function manualChoice(product: ShoppingProduct, choice: IngredientChoice): Ingre
     productQuantity: Math.max(1, choice.productQuantity || 1),
     cost: product.price ?? null,
     warning: product.pricePerBaseUnit ? null : "Prix brut utilise : selection manuelle.",
+    alreadyInFridge: choice.alreadyInFridge,
   };
 }
 
@@ -71,6 +74,7 @@ export function RecipeDetailClient({ recipe }: { recipe: Recipe }) {
   const category = getRecipeCategory(recipe.categorySlug);
   const [servings, setServings] = useState(recipe.baseServings);
   const [products, setProducts] = useState<ShoppingProduct[]>([]);
+  const [fridgeItems, setFridgeItems] = useState<FridgeItem[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -85,6 +89,9 @@ export function RecipeDetailClient({ recipe }: { recipe: Recipe }) {
       })
       .catch((loadError) => setError(loadError instanceof Error ? loadError.message : "Impossible de charger les produits."))
       .finally(() => setIsLoading(false));
+    loadFridgeItems()
+      .then(setFridgeItems)
+      .catch(() => setFridgeItems([]));
   }, []);
 
   const marjaneProducts = useMemo(() => products.filter((product) => product.store === "Marjane"), [products]);
@@ -101,12 +108,17 @@ export function RecipeDetailClient({ recipe }: { recipe: Recipe }) {
         cost: match.cost,
         warning: match.warning,
         candidates: match.candidates,
+        alreadyInFridge: fridgeItems.some((item) => {
+          const fridgeName = normalizeFridgeName(item.name);
+          const ingredientName = normalizeFridgeName(ingredient.name);
+          return item.status === "en_stock" && (fridgeName.includes(ingredientName) || ingredientName.includes(fridgeName));
+        }),
       };
       const selected = selectedProducts[ingredient.name];
       const selectedProduct = selected ? products.find((product) => product.id === selected) : null;
       return selectedProduct ? manualChoice(selectedProduct, baseChoice) : baseChoice;
     });
-  }, [products, recipe, selectedProducts, servings]);
+  }, [fridgeItems, products, recipe, selectedProducts, servings]);
   const estimatedTotal = choices.reduce((sum, choice) => sum + (choice.cost ?? 0), 0);
   const costPerServing = servings > 0 ? estimatedTotal / servings : 0;
   const variants = useMemo(() => generateRecipeVariants(recipe, products.slice(0, 6).map((product) => product.name.split(/\s+/).slice(0, 2).join(" "))), [products, recipe]);
@@ -222,6 +234,9 @@ export function RecipeDetailClient({ recipe }: { recipe: Recipe }) {
                 <div>
                   <p className="font-black text-zinc-950">{choice.ingredient.name}</p>
                   <p className="text-sm text-zinc-500">{choice.scaledQuantity.toFixed(choice.scaledQuantity % 1 === 0 ? 0 : 1)} {choice.ingredient.unit}</p>
+                  <p className={`mt-2 inline-flex rounded-md px-2 py-1 text-xs font-black ${choice.alreadyInFridge ? "bg-emerald-50 text-emerald-700" : "bg-yellow-50 text-yellow-800"}`}>
+                    {choice.alreadyInFridge ? "Deja au frigo" : "A acheter"}
+                  </p>
                 </div>
                 <div className="space-y-2">
                   {choice.product ? (

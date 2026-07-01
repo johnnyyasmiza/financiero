@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { FloatingVoiceButton } from "@/components/FloatingVoiceButton";
 import { PWARegister } from "@/components/PWARegister";
 import { SupabaseConnectionCheck } from "@/components/SupabaseConnectionCheck";
 import "./globals.css";
@@ -37,6 +38,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <PWARegister />
         <SupabaseConnectionCheck />
         {children}
+        <FloatingVoiceButton />
       </body>
     </html>
   );

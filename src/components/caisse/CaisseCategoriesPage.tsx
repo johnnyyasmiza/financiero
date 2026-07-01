@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { caisseCategories, getStoreByKey } from "@/lib/caisse-config";
+import { caisseCategories, findLogo, getFallbackCategoryKeys, getStoreByKey, normalizeCaisseKey } from "@/lib/caisse-config";
 import { cn } from "@/lib/utils";
 import { useCaisseCart } from "@/components/caisse/CaisseCartProvider";
 
@@ -21,16 +21,9 @@ export function CaisseCategoriesPage({ storeKey }: { storeKey: string }) {
   const availableCategoryKeys = new Set(
     products
       .filter((product) => product.store === store.name)
-      .map((product) =>
-        product.category
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .toLowerCase()
-          .replace(/s$/g, "")
-          .replace("charcuterie", "charcutrie")
-          .replace(/[^a-z0-9]+/g, ""),
-      ),
+      .map((product) => normalizeCaisseKey(product.category)),
   );
+  getFallbackCategoryKeys(store.key).forEach((categoryKey) => availableCategoryKeys.add(categoryKey));
   const visibleCategories = caisseCategories.filter((category) => availableCategoryKeys.has(category.key));
 
   return (
@@ -60,7 +53,7 @@ export function CaisseCategoriesPage({ storeKey }: { storeKey: string }) {
           >
             <div className="grid h-32 place-items-center rounded-lg bg-white p-3 shadow-inner">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={category.logo} alt={category.name} className="max-h-28 max-w-full object-contain" />
+              <img src={findLogo(category.key) || category.logo} alt={category.name} className="max-h-28 max-w-full object-contain" />
             </div>
             <p className="mt-4 text-lg font-black text-zinc-950">{category.name}</p>
           </Link>

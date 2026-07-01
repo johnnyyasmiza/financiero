@@ -117,7 +117,18 @@ function toExpense(row: ExpenseRow): Expense {
     date: row.expense_date ?? "",
     payment: row.payment_method,
     note: row.note ?? "",
+    sourceType: parseSourceType(row.note),
   };
+}
+
+function parseSourceType(note: string | null): Expense["sourceType"] {
+  const match = note?.match(/sourceType:\s*(purchase|receipt|voice|recipe_cost_internal)/i);
+  return match?.[1] as Expense["sourceType"] | undefined;
+}
+
+function buildExpenseNote(expense: ExpenseInput) {
+  if (!expense.sourceType || expense.note?.match(/sourceType:/i)) return expense.note || null;
+  return `sourceType: ${expense.sourceType}${expense.note ? `\n${expense.note}` : ""}`;
 }
 
 function toRevenue(row: RevenueRow): Income {
@@ -165,11 +176,12 @@ export async function getExpenses() {
 
 export async function addExpense(expense: ExpenseInput) {
   const payload = {
+    id: expense.id ?? createId(),
     amount: Number(expense.amount),
     merchant: expense.merchant || null,
     category: expense.category,
     payment_method: expense.payment,
-    note: expense.note || null,
+    note: buildExpenseNote(expense),
     expense_date: normalizeDate(expense.date),
   };
 
@@ -182,6 +194,7 @@ export async function addExpense(expense: ExpenseInput) {
       date: normalizeDate(expense.date),
       payment: expense.payment,
       note: expense.note ?? "",
+      sourceType: expense.sourceType,
     };
     const cached = await getCachedData<Expense[]>(EXPENSES_CACHE_KEY);
     await cacheData(EXPENSES_CACHE_KEY, [offlineExpense, ...(cached ?? [])]);
@@ -203,6 +216,7 @@ export async function addExpense(expense: ExpenseInput) {
         date: normalizeDate(expense.date),
         payment: expense.payment,
         note: expense.note ?? "",
+        sourceType: expense.sourceType,
       };
     }
 

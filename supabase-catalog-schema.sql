@@ -77,6 +77,45 @@ create table if not exists public.needs (
   updated_at timestamptz default now()
 );
 
+create table if not exists public.fridge_items (
+  id uuid primary key default gen_random_uuid(),
+  product_id uuid references public.products(id) on delete set null,
+  store text,
+  category text,
+  name text not null,
+  image_url text,
+  quantity numeric default 1,
+  unit text,
+  unit_quantity numeric,
+  total_quantity numeric,
+  initial_quantity numeric,
+  remaining_quantity numeric,
+  low_stock_threshold numeric default 20,
+  purchase_price numeric,
+  purchase_date date default current_date,
+  expiry_date date,
+  status text default 'en_stock',
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+alter table public.fridge_items add column if not exists product_id uuid references public.products(id) on delete set null;
+alter table public.fridge_items add column if not exists store text;
+alter table public.fridge_items add column if not exists category text;
+alter table public.fridge_items add column if not exists image_url text;
+alter table public.fridge_items add column if not exists quantity numeric default 1;
+alter table public.fridge_items add column if not exists unit text;
+alter table public.fridge_items add column if not exists unit_quantity numeric;
+alter table public.fridge_items add column if not exists total_quantity numeric;
+alter table public.fridge_items add column if not exists initial_quantity numeric;
+alter table public.fridge_items add column if not exists remaining_quantity numeric;
+alter table public.fridge_items add column if not exists low_stock_threshold numeric default 20;
+alter table public.fridge_items add column if not exists purchase_price numeric;
+alter table public.fridge_items add column if not exists purchase_date date default current_date;
+alter table public.fridge_items add column if not exists expiry_date date;
+alter table public.fridge_items add column if not exists status text default 'en_stock';
+alter table public.fridge_items add column if not exists updated_at timestamptz default now();
+
 create table if not exists public.recipes (
   id uuid primary key default gen_random_uuid(),
   slug text,
@@ -136,6 +175,7 @@ alter table public.shopping_cart_items enable row level security;
 alter table public.shopping_lists enable row level security;
 alter table public.invoices disable row level security;
 alter table public.needs disable row level security;
+alter table public.fridge_items disable row level security;
 alter table public.recipes disable row level security;
 alter table public.recipe_ingredients disable row level security;
 

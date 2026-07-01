@@ -6,6 +6,7 @@ import { addExpense } from "@/lib/finance-db";
 import { addNeeds, getProducts, subscribeToProducts, type ShoppingProduct } from "@/lib/shopping-catalog";
 import { formatCaissePrice } from "@/lib/caisse-config";
 import { getTodayDate } from "@/lib/utils";
+import { addFridgeItems } from "@/lib/fridge";
 
 export type CaisseCartItem = {
   product: ShoppingProduct;
@@ -39,12 +40,12 @@ function lineTotal(item: CaisseCartItem) {
 
 function getCartStore(cart: CaisseCartItem[]) {
   const stores = Array.from(new Set(cart.map((item) => item.product.store).filter(Boolean)));
-  return stores.length === 1 ? stores[0] : "Multi-magasins";
+  return stores.length === 1 ? stores[0] : "Courses";
 }
 
 function buildCartNote(cart: CaisseCartItem[]) {
   return cart
-    .map((item) => `${item.product.name} - ${item.quantity} ${item.product.unit} x ${formatCaissePrice(item.product.price)} = ${lineTotal(item).toFixed(2)} DH`)
+    .map((item) => `${item.product.name} - ${item.quantity} x ${item.product.unit} - ${formatCaissePrice(item.product.price)} = ${lineTotal(item).toFixed(2)} DH`)
     .join("\n");
 }
 
@@ -133,17 +134,44 @@ export function CaisseCartProvider({ children }: { children: React.ReactNode }) 
     setSuccess("");
 
     try {
-      await addExpense({
+      const expense = await addExpense({
         amount: total,
         merchant: getCartStore(cart),
-        category: "Courses",
-        payment: "A verifier",
-        note: buildCartNote(cart),
+        category: "Alimentation",
+        payment: "Carte",
+        note: `sourceType: purchase\n${buildCartNote(cart)}`,
         date: getTodayDate(),
       });
 
+      try {
+        await addFridgeItems(
+          cart.map((item) => {
+            const unitQuantity = item.product.unitQuantity ?? 1;
+            return {
+              productId: item.product.id,
+              store: item.product.store,
+              category: item.product.category,
+              name: item.product.name,
+              imageUrl: item.product.imageUrl,
+              quantity: item.quantity,
+              unit: item.product.unit ?? item.product.unitBase ?? "piece",
+              unitQuantity,
+              totalQuantity: item.quantity * unitQuantity,
+              initialQuantity: item.quantity * unitQuantity,
+              remainingQuantity: item.quantity * unitQuantity,
+              lowStockThreshold: 20,
+              purchasePrice: lineTotal(item),
+              purchaseDate: getTodayDate(),
+            };
+          }),
+        );
+      } catch (stockError) {
+        setError(`Depense creee (${expense.merchant || "courses"} - ${formatCaissePrice(expense.amount)}), mais le stock n'a pas ete ajoute.\n${stockError instanceof Error ? stockError.message : "Erreur stock inconnue."}`);
+        return;
+      }
+
       setCart([]);
-      setSuccess("Depense Courses enregistree.");
+      setSuccess("Achat valide : depense + stock ajoutes.");
       router.refresh();
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Impossible de valider les courses.");

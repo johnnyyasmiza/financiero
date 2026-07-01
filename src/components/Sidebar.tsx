@@ -10,6 +10,7 @@ export const appLinks = [
   { href: "/revenus", label: "Revenus", icon: "+" },
   { href: "/caisse", label: "Caisse", icon: "CA" },
   { href: "/besoins", label: "Besoins", icon: "BE" },
+  { href: "/frigo", label: "Mon Frigo", icon: "FR" },
   { href: "/comparateur", label: "Comparateur", icon: "CP" },
   { href: "/recettes", label: "Recettes", icon: "RE" },
   { href: "/scan", label: "Scan facture", icon: "SC" },

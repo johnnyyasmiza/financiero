@@ -27,7 +27,7 @@ const STORE_ORIGINS: Record<string, string> = {
 
 const EXPECTED_CATEGORIES = [
   { keys: ["bebe"], categoryKey: "bebe", label: "Bébé" },
-  { keys: ["charcutrie", "charcuterie"], categoryKey: "charcutrie", label: "Charcuterie" },
+  { keys: ["charcutrie", "charcuterie"], categoryKey: "charcuterie", label: "Charcuterie" },
   { keys: ["epicerie"], categoryKey: "epicerie", label: "Épicerie" },
   { keys: ["fromage"], categoryKey: "fromage", label: "Fromage" },
   { keys: ["fruits"], categoryKey: "fruits", label: "Fruits" },

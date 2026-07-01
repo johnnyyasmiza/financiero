@@ -403,6 +403,69 @@ export async function addNeeds(items: NeedInput[]) {
   return inserted;
 }
 
+export async function addOrIncrementNeed(item: NeedInput) {
+  const needs = await getNeeds();
+  const normalizedName = normalizeProductName(item.name);
+  const existing = needs.find((need) => normalizeProductName(need.name) === normalizedName && need.status === "a_acheter");
+
+  if (!existing) {
+    const [created] = await addNeeds([item]);
+    return created;
+  }
+
+  const nextQuantity = existing.quantity + item.quantity;
+  const nextUnitPrice = existing.unitPrice ?? item.unitPrice;
+  const nextTotal = nextUnitPrice === null ? null : nextQuantity * nextUnitPrice;
+  const payload = {
+    quantity: nextQuantity,
+    unit_price: nextUnitPrice,
+    total: nextTotal,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (!isOnline()) {
+    const updatedNeed = {
+      ...existing,
+      quantity: nextQuantity,
+      unitPrice: nextUnitPrice,
+      total: nextTotal,
+      updatedAt: new Date().toISOString(),
+    } satisfies Need;
+    const cached = await getCachedData<Need[]>(NEEDS_CACHE_KEY);
+    await cacheData(
+      NEEDS_CACHE_KEY,
+      (cached ?? needs).map((need) => (need.id === existing.id ? updatedNeed : need)),
+    );
+    return updatedNeed;
+  }
+
+  const { data, error } = await supabase.from("needs").update(payload).eq("id", existing.id).select("*").single();
+
+  if (error) {
+    if (isNetworkError(error)) {
+      notifyOfflineStatus();
+      const updatedNeed = {
+        ...existing,
+        quantity: nextQuantity,
+        unitPrice: nextUnitPrice,
+        total: nextTotal,
+        updatedAt: new Date().toISOString(),
+      } satisfies Need;
+      return updatedNeed;
+    }
+
+    throwCatalogError(error);
+  }
+
+  const updated = toNeed(data as NeedRow);
+  const cached = await getCachedData<Need[]>(NEEDS_CACHE_KEY);
+  await cacheData(
+    NEEDS_CACHE_KEY,
+    (cached ?? needs).map((need) => (need.id === existing.id ? updated : need)),
+  );
+  return updated;
+}
+
 export async function markNeedAsTaken(id: string) {
   const { data, error } = await supabase
     .from("needs")

@@ -7,6 +7,7 @@ import { StatCard } from "@/components/StatCard";
 import { TransactionList } from "@/components/TransactionList";
 import { getAssets, getExpenses, getRevenues, subscribeToFinanceTable } from "@/lib/finance-db";
 import { type Asset, type Expense, type Income, type Stat, type Transaction } from "@/lib/finance-data";
+import { getFridgeStats, loadFridgeItems, subscribeToFridge } from "@/lib/fridge";
 import { getNeeds, subscribeToNeeds, type Need } from "@/lib/shopping-catalog";
 import { formatMoney } from "@/lib/utils";
 
@@ -28,11 +29,16 @@ function isCurrentMonth(date: string) {
   return !Number.isNaN(value.getTime()) && value.getFullYear() === now.getFullYear() && value.getMonth() === now.getMonth();
 }
 
+function impactsBalance(expense: Expense) {
+  return expense.sourceType !== "recipe_cost_internal";
+}
+
 export function DashboardClient() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [revenues, setRevenues] = useState<Income[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [needs, setNeeds] = useState<Need[]>([]);
+  const [fridgeStats, setFridgeStats] = useState({ count: 0, lowStockCount: 0, totalValue: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -42,12 +48,13 @@ export function DashboardClient() {
         setIsLoading(true);
       }
 
-      Promise.all([getExpenses(), getRevenues(), getAssets(), getNeeds()])
+      Promise.all([getExpenses(), getRevenues(), getAssets(), getNeeds(), loadFridgeItems().catch(() => getFridgeStats())])
       .then(([nextExpenses, nextRevenues, nextAssets, nextNeeds]) => {
         setExpenses(nextExpenses);
         setRevenues(nextRevenues);
         setAssets(nextAssets);
         setNeeds(nextNeeds);
+        setFridgeStats(getFridgeStats());
         setError("");
       })
       .catch((loadError: unknown) => {
@@ -63,6 +70,7 @@ export function DashboardClient() {
       subscribeToFinanceTable("revenues", () => loadDashboard()),
       subscribeToFinanceTable("assets", () => loadDashboard()),
       subscribeToNeeds(() => loadDashboard()),
+      subscribeToFridge(() => loadDashboard()),
     ];
 
     return () => {
@@ -70,9 +78,10 @@ export function DashboardClient() {
     };
   }, []);
 
-  const monthlyExpenses = expenses.filter((expense) => isCurrentMonth(expense.date));
+  const balanceExpenses = expenses.filter(impactsBalance);
+  const monthlyExpenses = balanceExpenses.filter((expense) => isCurrentMonth(expense.date));
   const monthlyRevenues = revenues.filter((revenue) => isCurrentMonth(revenue.date));
-  const totalExpenses = expenses.reduce((total, expense) => total + expense.amount, 0);
+  const totalExpenses = balanceExpenses.reduce((total, expense) => total + expense.amount, 0);
   const totalRevenues = revenues.reduce((total, revenue) => total + revenue.amount, 0);
   const monthlyExpenseTotal = monthlyExpenses.reduce((total, expense) => total + expense.amount, 0);
   const monthlyIncomeTotal = monthlyRevenues.reduce((total, revenue) => total + revenue.amount, 0);
@@ -131,6 +140,20 @@ export function DashboardClient() {
           <div className="rounded-lg bg-emerald-50 px-4 py-3 text-right">
             <p className="text-xs font-black uppercase text-emerald-700">Total estime</p>
             <p className="text-xl font-black text-emerald-900">{formatMoney(needsTotal)}</p>
+          </div>
+        </div>
+      </Link>
+
+      <Link href="/frigo" className="mt-4 block rounded-lg border border-emerald-100 bg-white p-5 shadow-sm transition hover:border-emerald-400 hover:shadow-lg">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-black uppercase text-emerald-700">Mon Frigo</p>
+            <p className="mt-2 text-3xl font-black text-zinc-950">{fridgeStats.count} produits</p>
+            <p className="mt-1 text-sm text-zinc-500">{fridgeStats.lowStockCount} bientot fini(s)</p>
+          </div>
+          <div className="rounded-lg bg-blue-50 px-4 py-3 text-right">
+            <p className="text-xs font-black uppercase text-blue-700">Valeur stock</p>
+            <p className="text-xl font-black text-blue-950">{formatMoney(fridgeStats.totalValue)}</p>
           </div>
         </div>
       </Link>

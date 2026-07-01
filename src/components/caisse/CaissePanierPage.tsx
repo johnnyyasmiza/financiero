@@ -42,7 +42,14 @@ export function CaissePanierPage() {
       </div>
 
       {error ? <p className="whitespace-pre-line rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p> : null}
-      {success ? <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">{success}</p> : null}
+      {success ? (
+        <div className="flex flex-col gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800 sm:flex-row sm:items-center sm:justify-between">
+          <p>{success}</p>
+          <Link href="/frigo" className="inline-flex h-10 items-center justify-center rounded-lg bg-emerald-600 px-4 text-sm font-black text-white transition hover:bg-emerald-700">
+            Voir mon frigo
+          </Link>
+        </div>
+      ) : null}
 
       <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
         {cart.length === 0 ? (
