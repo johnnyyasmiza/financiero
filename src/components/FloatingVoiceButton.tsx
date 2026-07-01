@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { describeSmartCommand, handleSmartInput, parseVoiceCommand } from "@/lib/smartInput";
+import { describeVoiceIntent, executeVoiceIntent, parseVoiceCommand } from "@/lib/voice-intents";
 import { cn } from "@/lib/utils";
 import { Toast, type ToastState } from "@/components/Toast";
 
@@ -62,7 +62,8 @@ export function FloatingVoiceButton() {
   const [isEditing, setIsEditing] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
 
-  const understood = useMemo(() => describeSmartCommand(parseVoiceCommand(transcript)), [transcript]);
+  const intent = useMemo(() => parseVoiceCommand(transcript), [transcript]);
+  const understood = useMemo(() => (transcript ? describeVoiceIntent(intent) : ""), [intent, transcript]);
 
   useEffect(() => {
     return () => {
@@ -83,7 +84,7 @@ export function FloatingVoiceButton() {
     toastTimerRef.current = setTimeout(() => setToast(null), 3000);
   }
 
-  async function submitSmartInput(input: string) {
+  async function submitVoiceIntent(input: string) {
     const cleanInput = input.trim();
 
     if (!cleanInput || isSaving) {
@@ -95,9 +96,11 @@ export function FloatingVoiceButton() {
     setIsSaving(true);
 
     try {
-      const result = await handleSmartInput(cleanInput);
-      showToast({ type: "success", message: `✅ ${result.message}` });
+      const result = await executeVoiceIntent(parseVoiceCommand(cleanInput));
+      showToast({ type: "success", message: result.message });
       setIsEditing(false);
+      setTranscript("");
+      setManualInput("");
     } catch (error) {
       showToast({ type: "error", message: error instanceof Error ? error.message : "Commande vocale impossible." });
       setIsEditing(true);
@@ -112,7 +115,7 @@ export function FloatingVoiceButton() {
     if (!SpeechRecognition) {
       setIsSupported(false);
       setIsEditing(true);
-      showToast({ type: "error", message: "Micro non supporté sur ce navigateur. Écris ta commande." });
+      showToast({ type: "error", message: "Micro non supporte sur ce navigateur. Ecris ta commande." });
       return;
     }
 
@@ -125,7 +128,7 @@ export function FloatingVoiceButton() {
     recognition.onend = () => setIsListening(false);
     recognition.onerror = () => {
       setIsListening(false);
-      showToast({ type: "error", message: "Reconnaissance vocale interrompue. Réessaie ou écris ta commande." });
+      showToast({ type: "error", message: "Reconnaissance vocale interrompue. Reessaie ou ecris ta commande." });
     };
     recognition.onresult = (event) => {
       const spokenText = Array.from(event.results)
@@ -134,7 +137,9 @@ export function FloatingVoiceButton() {
         .trim();
 
       if (spokenText) {
-        void submitSmartInput(spokenText);
+        setTranscript(spokenText);
+        setManualInput(spokenText);
+        setIsEditing(false);
       }
     };
 
@@ -161,12 +166,18 @@ export function FloatingVoiceButton() {
       {showPanel ? (
         <section className="fixed bottom-[calc(env(safe-area-inset-bottom)+6.25rem)] right-4 z-40 w-[min(calc(100vw-2rem),24rem)] rounded-lg border border-emerald-300/50 bg-zinc-950/95 p-4 text-white shadow-2xl shadow-emerald-950/30 backdrop-blur sm:bottom-24 sm:right-6">
           {transcript ? (
-            <div>
-              <p className="text-xs font-black uppercase text-emerald-300">J&apos;ai compris</p>
-              <p className="mt-1 text-sm font-semibold text-white">{understood || transcript}</p>
+            <div className="grid gap-2">
+              <div>
+                <p className="text-xs font-black uppercase text-emerald-300">Phrase</p>
+                <p className="mt-1 text-sm font-semibold text-white">{transcript}</p>
+              </div>
+              <div>
+                <p className="text-xs font-black uppercase text-emerald-300">Action detectee</p>
+                <p className="mt-1 text-sm font-semibold text-white">{understood || "Commande non reconnue"}</p>
+              </div>
             </div>
           ) : (
-            <p className="text-sm font-semibold text-zinc-200">Micro non supporté sur ce navigateur. Écris ta commande.</p>
+            <p className="text-sm font-semibold text-zinc-200">Micro non supporte sur ce navigateur. Ecris ta commande.</p>
           )}
 
           {isEditing || !isSupported ? (
@@ -174,13 +185,13 @@ export function FloatingVoiceButton() {
               className="mt-3 grid gap-2"
               onSubmit={(event) => {
                 event.preventDefault();
-                void submitSmartInput(manualInput);
+                void submitVoiceIntent(manualInput);
               }}
             >
               <input
                 value={manualInput}
                 onChange={(event) => setManualInput(event.target.value)}
-                placeholder="120 DH Carrefour"
+                placeholder="Ajoute au frigo 4 Danone"
                 className="h-11 rounded-lg border border-white/10 bg-black px-3 text-sm text-white outline-none ring-emerald-400/30 focus:ring-4"
               />
               <button type="submit" disabled={isSaving} className="h-11 rounded-lg bg-emerald-400 px-4 text-sm font-black text-black transition hover:bg-emerald-300 disabled:bg-zinc-700 disabled:text-zinc-400">
@@ -189,7 +200,7 @@ export function FloatingVoiceButton() {
             </form>
           ) : (
             <div className="mt-3 grid grid-cols-3 gap-2">
-              <button type="button" onClick={() => void submitSmartInput(transcript)} disabled={isSaving} className="h-10 rounded-lg bg-emerald-400 px-3 text-xs font-black text-black transition hover:bg-emerald-300 disabled:bg-zinc-700 disabled:text-zinc-400">
+              <button type="button" onClick={() => void submitVoiceIntent(transcript)} disabled={isSaving} className="h-10 rounded-lg bg-emerald-400 px-3 text-xs font-black text-black transition hover:bg-emerald-300 disabled:bg-zinc-700 disabled:text-zinc-400">
                 Confirmer
               </button>
               <button type="button" onClick={() => setIsEditing(true)} className="h-10 rounded-lg border border-white/15 px-3 text-xs font-black text-zinc-100 transition hover:border-emerald-300">
@@ -206,7 +217,7 @@ export function FloatingVoiceButton() {
       <button
         type="button"
         onClick={isListening ? stopListening : startListening}
-        aria-label={isListening ? "Arrêter le micro" : "Démarrer le micro"}
+        aria-label={isListening ? "Arreter le micro" : "Demarrer le micro"}
         className={cn(
           "fixed bottom-[calc(env(safe-area-inset-bottom)+1.25rem)] right-4 z-50 grid size-16 place-items-center rounded-full border text-black shadow-2xl transition active:scale-95 sm:right-6",
           isListening
