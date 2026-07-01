@@ -197,7 +197,7 @@ export function mapToFinancieroItem(item: MarjaneApiItem): FinancieroImportItem 
 }
 
 export async function recordMarjaneSync(input: {
-  syncType: "json" | "url" | "import";
+  syncType: "json" | "url" | "extension" | "import";
   rawJson: unknown;
   importedItems: unknown;
 }) {

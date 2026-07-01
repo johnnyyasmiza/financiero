@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CART_STORAGE_KEY, type CaisseCartItem } from "@/components/caisse/CaisseCartProvider";
 import { addFridgeItem, normalizeUnit } from "@/lib/fridge";
 import {
@@ -19,6 +19,19 @@ const destinationLabels: Record<FinancieroDestination, string> = {
   cart: "Caisse",
   fridge: "Frigo",
   ignore: "Ignorer",
+};
+
+const extensionRequestType = "FINANCIERO_MARJANE_SYNC_REQUEST";
+const extensionResponseType = "FINANCIERO_MARJANE_SYNC_RESPONSE";
+const extensionReadyType = "FINANCIERO_MARJANE_SYNC_READY";
+
+type ExtensionResponse = {
+  source?: string;
+  type?: string;
+  requestId?: string;
+  ok?: boolean;
+  payload?: unknown;
+  error?: string;
 };
 
 function readCart() {
@@ -71,10 +84,14 @@ function addToCart(items: FinancieroImportItem[]) {
 }
 
 export function MarjaneConnectClient() {
+  const extensionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingExtensionRequestRef = useRef<string | null>(null);
   const [jsonInput, setJsonInput] = useState("");
   const [apiUrl, setApiUrl] = useState("");
   const [items, setItems] = useState<FinancieroImportItem[]>([]);
   const [isLoadingUrl, setIsLoadingUrl] = useState(false);
+  const [isRecoveringMarjane, setIsRecoveringMarjane] = useState(false);
+  const [isExtensionDetected, setIsExtensionDetected] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -85,7 +102,58 @@ export function MarjaneConnectClient() {
     setItems((current) => current.map((item) => (item.sourceId === sourceId ? { ...item, ...patch } : item)));
   }
 
-  function analyzeJson(input: string, syncType: "json" | "url" = "json") {
+  useEffect(() => {
+    function handleExtensionMessage(event: MessageEvent<ExtensionResponse>) {
+      if (event.source !== window || event.data?.source !== "financiero-marjane-extension") {
+        return;
+      }
+
+      if (event.data.type === extensionReadyType) {
+        setIsExtensionDetected(true);
+        return;
+      }
+
+      if (event.data.type !== extensionResponseType || event.data.requestId !== pendingExtensionRequestRef.current) {
+        return;
+      }
+
+      if (extensionTimeoutRef.current) {
+        clearTimeout(extensionTimeoutRef.current);
+      }
+
+      pendingExtensionRequestRef.current = null;
+      setIsRecoveringMarjane(false);
+      setIsExtensionDetected(true);
+
+      if (!event.data.ok) {
+        setError(event.data.error || "Impossible de recuperer la liste Marjane.");
+        return;
+      }
+
+      const payload = event.data.payload as { products?: unknown; items?: unknown } | unknown;
+      const productsPayload =
+        payload && typeof payload === "object" && "products" in payload
+          ? (payload as { products?: unknown }).products
+          : payload && typeof payload === "object" && "items" in payload
+            ? (payload as { items?: unknown }).items
+            : payload;
+      const json = JSON.stringify(productsPayload);
+      setJsonInput(json);
+      analyzeJson(json, "extension");
+    }
+
+    window.addEventListener("message", handleExtensionMessage);
+    window.postMessage({ source: "financiero", type: "FINANCIERO_MARJANE_SYNC_PING" }, window.location.origin);
+
+    return () => {
+      window.removeEventListener("message", handleExtensionMessage);
+      if (extensionTimeoutRef.current) {
+        clearTimeout(extensionTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  function analyzeJson(input: string, syncType: "json" | "url" | "extension" = "json") {
     try {
       const parsed = parseMarjaneJson(input);
       const nextItems = parsed.map(mapToFinancieroItem);
@@ -121,6 +189,30 @@ export function MarjaneConnectClient() {
     } finally {
       setIsLoadingUrl(false);
     }
+  }
+
+  function recoverMarjaneList() {
+    if (extensionTimeoutRef.current) {
+      clearTimeout(extensionTimeoutRef.current);
+    }
+
+    const requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    pendingExtensionRequestRef.current = requestId;
+    setIsRecoveringMarjane(true);
+    setError("");
+    setMessage("Demande envoyee a l'extension Chrome Financiero Marjane Sync.");
+
+    window.postMessage({ source: "financiero", type: extensionRequestType, requestId }, window.location.origin);
+
+    extensionTimeoutRef.current = setTimeout(() => {
+      if (pendingExtensionRequestRef.current !== requestId) {
+        return;
+      }
+
+      pendingExtensionRequestRef.current = null;
+      setIsRecoveringMarjane(false);
+      setError("Installez l'extension Chrome Financiero Marjane Sync, puis rechargez cette page. Fallback : collez la reponse JSON manuellement.");
+    }, 4000);
   }
 
   function sendAllTo(destination: FinancieroDestination) {
@@ -206,6 +298,20 @@ export function MarjaneConnectClient() {
 
       {error ? <p className="whitespace-pre-line rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p> : null}
       {message ? <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">{message}</p> : null}
+
+      <section className="rounded-lg border border-emerald-100 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h3 className="text-xl font-black text-zinc-950">Recuperation automatique</h3>
+            <p className="mt-1 text-sm font-semibold text-zinc-500">
+              Extension Chrome locale : {isExtensionDetected ? "detectee" : "non detectee"}. Ouvrez aussi Marjane dans un onglet connecte.
+            </p>
+          </div>
+          <button type="button" onClick={recoverMarjaneList} disabled={isRecoveringMarjane} className="h-12 rounded-lg bg-emerald-500 px-5 text-sm font-black text-black transition hover:bg-emerald-400 disabled:bg-zinc-300">
+            {isRecoveringMarjane ? "Recuperation..." : "Récupérer liste Marjane"}
+          </button>
+        </div>
+      </section>
 
       <section className="grid gap-5 xl:grid-cols-2">
         <div className="rounded-lg border border-blue-100 bg-white p-5 shadow-sm">

@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Financiero Marjane Sync",
+  "version": "0.1.0",
+  "description": "Recupere la liste Marjane depuis une session navigateur deja connectee et l'envoie a Financiero.",
+  "permissions": ["activeTab", "scripting", "storage", "tabs"],
+  "host_permissions": [
+    "https://www.marjane.ma/*",
+    "https://api-ayaline.marjane.ma/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "https://*.vercel.app/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://localhost/integrations/marjane*", "http://127.0.0.1/integrations/marjane*", "https://*.vercel.app/integrations/marjane*"],
+      "js": ["financiero-bridge.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
