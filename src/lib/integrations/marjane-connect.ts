@@ -118,7 +118,7 @@ export function detectUnitFromLabel(label: string, weight?: number | null) {
   const volume = normalized.match(/\b(\d+(?:[.,]\d+)?)\s*(ml|l|litre|litres)\b/);
   if (volume) {
     const amount = asNumber(volume[1]) ?? 1;
-    return /^(l|litre|litres)$/.test(volume[2]) ? { unit: "litre", quantity: amount } : { unit: "ml", quantity: amount };
+    return /^(l|litre|litres)$/.test(volume[2]) ? { unit: "l", quantity: amount } : { unit: "ml", quantity: amount };
   }
 
   const mass = normalized.match(/\b(\d+(?:[.,]\d+)?)\s*(kg|kilo|kilos|g|gr|gramme|grammes)\b/);

@@ -7,6 +7,7 @@ import {
   addFridgeItem,
   calculateRecipeCost,
   calculateStockProgress,
+  formatFridgeQuantity,
   getLowStockAlerts,
   loadFridgeItems,
   prepareRecipe,
@@ -20,7 +21,7 @@ import { addNeeds, addOrIncrementNeed, getNeeds } from "@/lib/shopping-catalog";
 import { normalizeProductName } from "@/lib/price-comparison";
 import { formatMoney, getTodayDate } from "@/lib/utils";
 
-const recipeUnits = ["g", "kg", "ml", "l", "piece", "pack"];
+const recipeUnits = ["g", "kg", "ml", "cl", "l", "piece", "pack"];
 const fridgeFilters = ["Tous", "En stock", "Stock bas", "Epuise", "Fruits", "Legumes", "Viande", "Volaille", "Bebe", "Epicerie", "Fromage", "Charcuterie"];
 
 type EditableRecipeIngredient = FridgeRecipeIngredient & { estimatedPrice?: number };
@@ -97,13 +98,14 @@ export function FridgePage() {
     const weight = Number(values.get("weight"));
     const weightUnit = String(values.get("weightUnit") || "g");
     const pieces = Number(values.get("pieces"));
+    const unitIsCount = weightUnit === "piece" || weightUnit === "pack";
 
     try {
       await addFridgeItem({
         name,
         category: String(values.get("category") || "Autre"),
-        quantityWeight: Number.isFinite(weight) && weight > 0 ? weight : undefined,
-        quantityPieces: Number.isFinite(pieces) && pieces > 0 ? pieces : undefined,
+        quantityWeight: !unitIsCount && Number.isFinite(weight) && weight > 0 ? weight : undefined,
+        quantityPieces: unitIsCount && Number.isFinite(weight) && weight > 0 ? weight : Number.isFinite(pieces) && pieces > 0 ? pieces : undefined,
         unit: weightUnit,
         totalPrice: Number(values.get("totalPrice")),
         purchaseDate: String(values.get("purchaseDate") || getTodayDate()),
@@ -233,7 +235,7 @@ export function FridgePage() {
           <div className="grid grid-cols-2 gap-3">
             <input name="weight" type="number" step="0.01" min="0" placeholder="Poids / volume" className="h-12 rounded-lg border border-blue-100 px-4 outline-none focus:border-blue-500" />
             <select name="weightUnit" className="h-12 rounded-lg border border-blue-100 px-4 outline-none focus:border-blue-500">
-              {["g", "kg", "ml", "l"].map((unit) => <option key={unit}>{unit}</option>)}
+              {["kg", "g", "l", "cl", "ml", "piece", "pack"].map((unit) => <option key={unit} value={unit}>{unit === "piece" ? "pièce" : unit === "pack" ? "paquet" : unit}</option>)}
             </select>
           </div>
           <input name="pieces" type="number" step="0.1" min="0" placeholder="Nombre de pieces optionnel" className="h-12 rounded-lg border border-blue-100 px-4 outline-none focus:border-blue-500" />
@@ -259,7 +261,7 @@ export function FridgePage() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-black">{alert.message}</p>
-                    <p className="mt-1 text-xs font-bold">Restant : {alert.item.remainingQuantity ?? 0} {alert.item.unit}</p>
+                    <p className="mt-1 text-xs font-bold">Restant : {formatFridgeQuantity(alert.item)}</p>
                     {needsAddedIds.has(alert.item.id) ? <p className="mt-2 inline-flex rounded-md bg-white px-2 py-1 text-xs font-black text-emerald-700">Deja dans besoins</p> : null}
                   </div>
                   <div className="flex flex-wrap gap-2">

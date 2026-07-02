@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 import { addOrIncrementNeed } from "@/lib/shopping-catalog";
-import { calculateStockProgress, consumeFridgeItemById, deleteFridgeItem, estimateFridgeValue, formatFridgeQuantity, updateFridgeItemQuantity, type FridgeItem } from "@/lib/fridge";
+import { calculateStockProgress, consumeFridgeItemById, deleteFridgeItem, estimateFridgeValue, formatFridgeQuantity, updateFridgeItemStock, type FridgeItem } from "@/lib/fridge";
+import { formatQuantity, normalizeUnit } from "@/lib/units";
 import { cn, formatDate, formatMoney } from "@/lib/utils";
+
+const unitOptions = ["kg", "g", "l", "cl", "ml", "piece", "pack"];
 
 export function FridgeItemCard({
   item,
@@ -15,8 +18,27 @@ export function FridgeItemCard({
   const progress = Math.round(calculateStockProgress(item));
   const value = estimateFridgeValue(item);
   const [isEditing, setIsEditing] = useState(false);
-  const [quantity, setQuantity] = useState(String(item.quantity ?? item.quantityPieces ?? 1));
-  const [totalQuantity, setTotalQuantity] = useState(String(item.totalQuantity ?? item.quantityWeight ?? ""));
+  const [initialQuantity, setInitialQuantity] = useState(String(item.initialQuantity ?? item.totalQuantity ?? item.quantity ?? 1));
+  const [remainingQuantity, setRemainingQuantity] = useState(String(item.remainingQuantity ?? item.totalQuantity ?? item.quantity ?? 1));
+  const [unit, setUnit] = useState<string>(item.unit || "piece");
+  const [purchasePrice, setPurchasePrice] = useState(String(item.purchasePrice ?? item.totalPrice ?? 0));
+  const [lowStockThreshold, setLowStockThreshold] = useState(String(item.lowStockThreshold ?? item.lowStockThresholdPercent ?? 20));
+  const initial = item.initialQuantity ?? item.totalQuantity ?? item.quantity ?? 1;
+  const unitPrice = initial > 0 ? (item.purchasePrice ?? item.totalPrice ?? 0) / initial : 0;
+  const unitForPrice = normalizeUnit(item.unit);
+  const pricePerReference =
+    unitForPrice === "g"
+      ? unitPrice * 100
+      : unitForPrice === "kg"
+        ? unitPrice / 10
+        : unitForPrice === "ml"
+          ? unitPrice * 100
+          : unitForPrice === "cl"
+            ? unitPrice * 10
+            : unitForPrice === "l"
+              ? unitPrice / 10
+              : unitPrice;
+  const priceReferenceLabel = unitForPrice === "g" || unitForPrice === "kg" ? "100g" : unitForPrice === "ml" || unitForPrice === "cl" || unitForPrice === "l" ? "100ml" : unitForPrice === "pack" ? "paquet" : "piece";
 
   async function addToNeeds() {
     await addOrIncrementNeed({
@@ -42,7 +64,9 @@ export function FridgeItemCard({
         onChanged("Quantite invalide.", "error");
         return;
       }
-      const result = await consumeFridgeItemById(item.id, amount, item.unit || "piece");
+      const rawUnit = window.prompt("Unite consommee (kg, g, l, cl, ml, piece, paquet)", item.unit || "piece");
+      if (rawUnit === null) return;
+      const result = await consumeFridgeItemById(item.id, amount, rawUnit);
       onChanged(result.alert ? `${result.item.name} retire. ${result.alert}` : `${result.item.name} retire du frigo`, result.alert ? "warning" : "success");
     } catch (error) {
       onChanged(error instanceof Error ? error.message : "Consommation impossible.", "error");
@@ -50,15 +74,23 @@ export function FridgeItemCard({
   }
 
   async function saveQuantity() {
-    const nextQuantity = Number(quantity);
-    const nextTotalQuantity = totalQuantity ? Number(totalQuantity) : null;
-    if (!Number.isFinite(nextQuantity) || nextQuantity < 0) {
+    const nextInitialQuantity = Number(initialQuantity);
+    const nextRemainingQuantity = Number(remainingQuantity);
+    const nextPurchasePrice = Number(purchasePrice);
+    const nextLowStockThreshold = Number(lowStockThreshold);
+    if (!Number.isFinite(nextInitialQuantity) || nextInitialQuantity < 0 || !Number.isFinite(nextRemainingQuantity) || nextRemainingQuantity < 0) {
       onChanged("Quantite invalide.", "error");
       return;
     }
 
     try {
-      await updateFridgeItemQuantity(item.id, nextQuantity, Number.isFinite(nextTotalQuantity) ? nextTotalQuantity : null);
+      await updateFridgeItemStock(item.id, {
+        initialQuantity: nextInitialQuantity,
+        remainingQuantity: nextRemainingQuantity,
+        unit,
+        purchasePrice: Number.isFinite(nextPurchasePrice) ? nextPurchasePrice : item.purchasePrice ?? null,
+        lowStockThreshold: Number.isFinite(nextLowStockThreshold) ? nextLowStockThreshold : item.lowStockThreshold ?? 20,
+      });
       setIsEditing(false);
       onChanged(`${item.name} mis a jour`);
     } catch (error) {
@@ -96,7 +128,7 @@ export function FridgeItemCard({
       </div>
 
       <div className="mt-4 h-3 rounded-full bg-zinc-100">
-        <div className={cn("h-3 rounded-full", progress <= 0 ? "bg-red-500" : progress <= (item.lowStockThreshold ?? 20) ? "bg-yellow-400" : progress > 50 ? "bg-emerald-400" : "bg-orange-400")} style={{ width: `${Math.max(progress, progress > 0 ? 3 : 0)}%` }} />
+        <div className={cn("h-3 rounded-full", progress <= 0 ? "bg-red-800" : progress < 30 ? "bg-red-500" : progress < 60 ? "bg-orange-400" : "bg-emerald-400")} style={{ width: `${Math.max(progress, progress > 0 ? 3 : 0)}%` }} />
       </div>
       <div className="mt-2 flex justify-between text-xs font-bold text-zinc-500">
         <span>{progress}%</span>
@@ -107,15 +139,23 @@ export function FridgeItemCard({
         <p>Prix achat : {formatMoney(item.purchasePrice ?? item.totalPrice ?? 0)}</p>
         <p>Date achat : {formatDate(item.purchaseDate)}</p>
         <p>Restant : {formatFridgeQuantity(item)}</p>
-        {item.pricePerGram ? <p>100 {item.unit === "ml" ? "ml" : "g"} : {formatMoney(item.pricePerGram * 100)}</p> : null}
-        {item.pricePerPiece ? <p>Piece : {formatMoney(item.pricePerPiece)}</p> : null}
+        <p>Initial : {formatQuantity(initial, item.unit)}</p>
+        <p>{priceReferenceLabel} : {formatMoney(pricePerReference)}</p>
+        <p>Prix restant : {formatMoney(value)}</p>
         {item.averageWeightPerPiece ? <p className="col-span-2">Poids moyen : {Math.round(item.averageWeightPerPiece)} g / piece</p> : null}
       </div>
 
       {isEditing ? (
         <div className="mt-4 grid gap-2 rounded-lg bg-blue-50 p-3">
-          <input value={quantity} onChange={(event) => setQuantity(event.target.value)} type="number" min="0" step="0.01" className="h-10 rounded-lg border border-blue-100 px-3 text-sm font-semibold outline-none focus:border-blue-500" />
-          <input value={totalQuantity} onChange={(event) => setTotalQuantity(event.target.value)} type="number" min="0" step="0.01" placeholder="Quantite totale restante" className="h-10 rounded-lg border border-blue-100 px-3 text-sm font-semibold outline-none focus:border-blue-500" />
+          <input value={initialQuantity} onChange={(event) => setInitialQuantity(event.target.value)} type="number" min="0" step="0.01" placeholder="Quantite initiale" className="h-10 rounded-lg border border-blue-100 px-3 text-sm font-semibold outline-none focus:border-blue-500" />
+          <input value={remainingQuantity} onChange={(event) => setRemainingQuantity(event.target.value)} type="number" min="0" step="0.01" placeholder="Quantite restante" className="h-10 rounded-lg border border-blue-100 px-3 text-sm font-semibold outline-none focus:border-blue-500" />
+          <select value={unit} onChange={(event) => setUnit(event.target.value)} className="h-10 rounded-lg border border-blue-100 px-3 text-sm font-semibold outline-none focus:border-blue-500">
+            {unitOptions.map((option) => (
+              <option key={option} value={option}>{option === "piece" ? "pièce" : option === "pack" ? "paquet" : option}</option>
+            ))}
+          </select>
+          <input value={purchasePrice} onChange={(event) => setPurchasePrice(event.target.value)} type="number" min="0" step="0.01" placeholder="Prix achat total" className="h-10 rounded-lg border border-blue-100 px-3 text-sm font-semibold outline-none focus:border-blue-500" />
+          <input value={lowStockThreshold} onChange={(event) => setLowStockThreshold(event.target.value)} type="number" min="0" max="100" step="1" placeholder="Seuil bas %" className="h-10 rounded-lg border border-blue-100 px-3 text-sm font-semibold outline-none focus:border-blue-500" />
           <div className="grid grid-cols-2 gap-2">
             <button type="button" onClick={() => void saveQuantity()} className="h-10 rounded-lg bg-blue-600 px-2 text-xs font-black text-white">Enregistrer</button>
             <button type="button" onClick={() => setIsEditing(false)} className="h-10 rounded-lg border border-blue-100 bg-white px-2 text-xs font-black text-blue-800">Annuler</button>

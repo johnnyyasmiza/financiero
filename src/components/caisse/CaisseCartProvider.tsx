@@ -147,7 +147,8 @@ export function CaisseCartProvider({ children }: { children: React.ReactNode }) 
         const fridgePayload = await Promise.all(
           cart.map(async (item) => {
             const productForStock = await ensureProductExistsForStock(item.product);
-            const unitQuantity = item.product.unitQuantity ?? 1;
+            const unitQuantity = item.product.unitQuantity && item.product.unitQuantity > 0 ? item.product.unitQuantity : null;
+            const totalQuantity = unitQuantity ? item.quantity * unitQuantity : null;
             return {
               productId: productForStock?.id ?? null,
               store: item.product.store,
@@ -157,9 +158,9 @@ export function CaisseCartProvider({ children }: { children: React.ReactNode }) 
               quantity: item.quantity,
               unit: item.product.unit ?? item.product.unitBase ?? "piece",
               unitQuantity,
-              totalQuantity: item.quantity * unitQuantity,
-              initialQuantity: item.quantity * unitQuantity,
-              remainingQuantity: item.quantity * unitQuantity,
+              totalQuantity,
+              initialQuantity: totalQuantity,
+              remainingQuantity: totalQuantity,
               lowStockThreshold: 20,
               purchasePrice: lineTotal(item),
               purchaseDate: getTodayDate(),

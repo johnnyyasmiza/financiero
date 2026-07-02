@@ -1,9 +1,17 @@
 import { getTodayDate } from "@/lib/utils";
 import { normalizeCaisseKey } from "@/lib/caisse-config";
+import { detectProductUnit } from "@/lib/products/detect-product-unit";
 import { ensureProductExists } from "@/lib/products/ensure-product";
 import { supabase } from "@/lib/supabase";
+import {
+  calculateStockPercent,
+  convertBetweenUnits,
+  formatQuantity,
+  normalizeUnit as normalizeSupportedUnit,
+  type SupportedUnit,
+} from "@/lib/units";
 
-export type FridgeUnit = "g" | "kg" | "ml" | "l" | "piece" | "pack";
+export type FridgeUnit = SupportedUnit;
 
 export type FridgeItem = {
   id: string;
@@ -55,6 +63,14 @@ export type FridgeItemInput = {
   purchaseDate?: string;
   expiryDate?: string;
   lowStockThresholdPercent?: number;
+};
+
+export type FridgeItemStockUpdate = {
+  initialQuantity?: number | null;
+  remainingQuantity?: number | null;
+  unit?: string | null;
+  purchasePrice?: number | null;
+  lowStockThreshold?: number | null;
 };
 
 export type FridgeConsumeResult = {
@@ -178,6 +194,69 @@ function getRemainingQuantity(item: FridgeItem) {
   return item.remainingQuantity ?? getDerivedQuantity(item);
 }
 
+function resolveInputStock(input: FridgeItemInput) {
+  const detected = detectProductUnit(input.name);
+  const requestedUnit = input.unit ? normalizeSupportedUnit(input.unit) : detected?.unit ?? "piece";
+  const unit = requestedUnit;
+  const packCount = input.quantity && input.quantity > 0 ? input.quantity : 1;
+
+  if (input.totalQuantity !== null && input.totalQuantity !== undefined) {
+    const totalQuantity = Number(input.totalQuantity);
+    return { unit, quantity: totalQuantity, unitQuantity: 1, totalQuantity };
+  }
+
+  if (input.initialQuantity !== null && input.initialQuantity !== undefined) {
+    const totalQuantity = Number(input.initialQuantity);
+    return { unit, quantity: totalQuantity, unitQuantity: 1, totalQuantity };
+  }
+
+  if (input.quantityWeight && input.quantityWeight > 0) {
+    const totalQuantity = input.quantityWeight;
+    return { unit, quantity: totalQuantity, unitQuantity: 1, totalQuantity };
+  }
+
+  if (input.quantityPieces && input.quantityPieces > 0) {
+    const totalQuantity = input.quantityPieces;
+    return { unit: unit === "pack" ? "pack" as const : "piece" as const, quantity: totalQuantity, unitQuantity: 1, totalQuantity };
+  }
+
+  if (input.unitQuantity && input.unitQuantity > 0) {
+    const totalQuantity = packCount * input.unitQuantity;
+    return { unit, quantity: totalQuantity, unitQuantity: 1, totalQuantity };
+  }
+
+  if (detected) {
+    const totalQuantity = packCount * detected.quantity;
+    return { unit: detected.unit, quantity: totalQuantity, unitQuantity: 1, totalQuantity };
+  }
+
+  const totalQuantity = packCount;
+  return { unit, quantity: totalQuantity, unitQuantity: 1, totalQuantity };
+}
+
+function repairItemFromName(item: FridgeItem) {
+  const detected = detectProductUnit(item.name);
+  if (!detected || detected.quantity <= 1) return item;
+
+  const initial = getInitialQuantity(item);
+  const remaining = getRemainingQuantity(item);
+  const looksBroken = item.status !== "epuise" && initial <= 1 && remaining <= 1;
+  if (!looksBroken) return item;
+
+  return enrichItem({
+    ...item,
+    unit: detected.unit,
+    quantity: detected.quantity,
+    unitQuantity: 1,
+    totalQuantity: detected.quantity,
+    initialQuantity: detected.quantity,
+    remainingQuantity: detected.quantity,
+    quantityWeight: detected.unit === "g" || detected.unit === "kg" || detected.unit === "ml" || detected.unit === "cl" || detected.unit === "l" ? detected.quantity : undefined,
+    quantityPieces: detected.unit === "piece" || detected.unit === "pack" ? detected.quantity : undefined,
+    status: "en_stock",
+  });
+}
+
 export function normalizeFridgeName(value: string) {
   return value
     .normalize("NFD")
@@ -189,18 +268,7 @@ export function normalizeFridgeName(value: string) {
 }
 
 export function normalizeUnit(value: number, unit: string): { value: number; unit: FridgeUnit } {
-  const normalized = unit
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-
-  if (["kg", "kilo", "kilos", "kilogramme", "kilogrammes"].includes(normalized)) return { value: value * 1000, unit: "g" };
-  if (["g", "gr", "gramme", "grammes"].includes(normalized)) return { value, unit: "g" };
-  if (["l", "litre", "litres"].includes(normalized)) return { value: value * 1000, unit: "ml" };
-  if (["ml", "millilitre", "millilitres"].includes(normalized)) return { value, unit: "ml" };
-  if (["pack", "paquet", "paquets"].includes(normalized)) return { value, unit: "pack" };
-  return { value, unit: "piece" };
+  return { value, unit: normalizeSupportedUnit(unit) };
 }
 
 function readFridgeItems() {
@@ -246,18 +314,20 @@ function toRowPayload(input: FridgeItem) {
 }
 
 function fromRow(row: FridgeItemRow): FridgeItem {
-  const quantity = Number(row.quantity ?? 1);
-  const unit = normalizeUnit(1, row.unit ?? "piece").unit;
+  const unit = normalizeSupportedUnit(row.unit);
+  const detected = detectProductUnit(row.name);
+  const rawQuantity = Number(row.quantity ?? 1);
   const totalQuantity = row.total_quantity === null || row.total_quantity === undefined ? null : Number(row.total_quantity);
   const unitQuantity = row.unit_quantity === null || row.unit_quantity === undefined ? null : Number(row.unit_quantity);
-  const derivedQuantity = totalQuantity ?? (unitQuantity ? quantity * unitQuantity : quantity) ?? 1;
+  const quantity = totalQuantity ?? (rawQuantity <= 1 && detected ? detected.quantity : rawQuantity);
+  const derivedQuantity = totalQuantity ?? (unitQuantity ? rawQuantity * unitQuantity : quantity) ?? 1;
   const initialQuantity = row.initial_quantity === null || row.initial_quantity === undefined ? derivedQuantity : Number(row.initial_quantity);
   const remainingQuantity = row.remaining_quantity === null || row.remaining_quantity === undefined ? derivedQuantity : Number(row.remaining_quantity);
   const purchasePrice = row.purchase_price === null || row.purchase_price === undefined ? null : Number(row.purchase_price);
-  const quantityWeight = unit === "g" || unit === "ml" ? remainingQuantity ?? totalQuantity ?? unitQuantity ?? undefined : undefined;
+  const quantityWeight = unit === "g" || unit === "kg" || unit === "ml" || unit === "cl" || unit === "l" ? remainingQuantity ?? totalQuantity ?? unitQuantity ?? undefined : undefined;
   const quantityPieces = unit === "piece" || unit === "pack" ? remainingQuantity ?? quantity : undefined;
 
-  return enrichItem({
+  return repairItemFromName(enrichItem({
     id: row.id,
     productId: row.product_id,
     store: row.store,
@@ -281,7 +351,7 @@ function fromRow(row: FridgeItemRow): FridgeItem {
     expiryDate: row.expiry_date ?? "",
     status: remainingQuantity <= 0 ? "epuise" : row.status ?? "en_stock",
     updatedAt: row.updated_at,
-  });
+  }));
 }
 
 export function subscribeToFridge(onChange: () => void) {
@@ -338,7 +408,36 @@ export async function loadFridgeItems() {
     throwFridgeError(error);
   }
 
-  const items = ((data ?? []) as FridgeItemRow[]).map(fromRow);
+  const rows = (data ?? []) as FridgeItemRow[];
+  const items = rows.map(fromRow);
+  const repairs = items.filter((item, index) => {
+    const row = rows[index];
+    return (
+      item.status !== "epuise" &&
+      (row.initial_quantity ?? row.total_quantity ?? row.quantity ?? 1) <= 1 &&
+      item.initialQuantity !== null &&
+      item.initialQuantity !== undefined &&
+      item.initialQuantity > 1
+    );
+  });
+
+  await Promise.all(
+    repairs.map((item) =>
+      supabase
+        .from("fridge_items")
+        .update({
+          quantity: item.quantity ?? item.initialQuantity ?? 1,
+          unit: item.unit,
+          unit_quantity: 1,
+          total_quantity: item.totalQuantity ?? item.initialQuantity ?? 1,
+          initial_quantity: item.initialQuantity ?? 1,
+          remaining_quantity: item.remainingQuantity ?? item.initialQuantity ?? 1,
+          status: "en_stock",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", item.id),
+    ),
+  );
   writeFridgeItems(items);
   return items;
 }
@@ -368,13 +467,14 @@ export async function addFridgeItem(input: FridgeItemInput) {
     unitQuantity: input.unitQuantity,
     sourceUrl: null,
   });
-  const unit = normalizeUnit(1, input.unit ?? "piece").unit;
-  const quantity = input.quantity && input.quantity > 0 ? input.quantity : input.quantityPieces && input.quantityPieces > 0 ? input.quantityPieces : 1;
-  const unitQuantity = input.unitQuantity && input.unitQuantity > 0 ? input.unitQuantity : input.quantityWeight && input.quantityWeight > 0 ? input.quantityWeight : 1;
-  const totalQuantity = input.totalQuantity ?? (unitQuantity ? unitQuantity * quantity : input.quantityWeight ?? input.quantityPieces ?? quantity);
+  const resolved = resolveInputStock(input);
+  const unit = resolved.unit;
+  const quantity = resolved.quantity;
+  const unitQuantity = resolved.unitQuantity;
+  const totalQuantity = resolved.totalQuantity;
   const initialQuantity = input.initialQuantity ?? totalQuantity ?? quantity ?? 1;
   const remainingQuantity = input.remainingQuantity ?? totalQuantity ?? quantity ?? 1;
-  const quantityWeight = unit === "g" || unit === "ml" ? totalQuantity : undefined;
+  const quantityWeight = unit === "g" || unit === "kg" || unit === "ml" || unit === "cl" || unit === "l" ? totalQuantity : undefined;
   const quantityPieces = unit === "piece" || unit === "pack" ? quantity : undefined;
   const now = getTodayDate();
   const incoming = enrichItem({
@@ -427,9 +527,10 @@ export async function addFridgeItems(items: FridgeItemInput[]) {
       unitQuantity: input.unitQuantity,
       sourceUrl: null,
     });
-    const quantity = input.quantity && input.quantity > 0 ? input.quantity : input.quantityPieces && input.quantityPieces > 0 ? input.quantityPieces : 1;
-    const unitQuantity = input.unitQuantity && input.unitQuantity > 0 ? input.unitQuantity : 1;
-    const totalQuantity = input.totalQuantity ?? quantity * unitQuantity;
+    const resolved = resolveInputStock(input);
+    const quantity = resolved.quantity;
+    const unitQuantity = resolved.unitQuantity;
+    const totalQuantity = resolved.totalQuantity;
     const initialQuantity = input.initialQuantity ?? totalQuantity ?? quantity ?? 1;
     const remainingQuantity = input.remainingQuantity ?? totalQuantity ?? quantity ?? 1;
     return {
@@ -439,7 +540,7 @@ export async function addFridgeItems(items: FridgeItemInput[]) {
       name: input.name,
       image_url: input.imageUrl || null,
       quantity,
-      unit: input.unit || "piece",
+      unit: resolved.unit,
       unit_quantity: unitQuantity,
       total_quantity: totalQuantity,
       initial_quantity: initialQuantity,
@@ -465,7 +566,7 @@ export function calculateStockProgress(item: FridgeItem) {
   const remainingQuantity = getRemainingQuantity(item);
 
   if (initialQuantity > 0) {
-    return Math.max(0, Math.min(100, (remainingQuantity / initialQuantity) * 100));
+    return calculateStockPercent(remainingQuantity, initialQuantity);
   }
 
   if (item.initialWeight && item.initialWeight > 0) {
@@ -517,7 +618,7 @@ export async function consumeFridgeItem(productName: string, amount: number, uni
 
   const normalized = normalizeUnit(amount, unit);
   const currentRemaining = getRemainingQuantity(item);
-  const consumeAmount = normalized.unit === "kg" || normalized.unit === "l" ? normalized.value : amount;
+  const consumeAmount = convertBetweenUnits(normalized.value, normalized.unit, item.unit);
   const nextRemaining = Math.max(currentRemaining - consumeAmount, 0);
   let nextWeight = item.quantityWeight ?? currentRemaining;
   let nextPieces = item.quantityPieces ?? currentRemaining;
@@ -525,18 +626,16 @@ export async function consumeFridgeItem(productName: string, amount: number, uni
   if (normalized.unit === "piece" || normalized.unit === "pack") {
     nextPieces = Math.max(nextPieces - normalized.value, 0);
     if (item.averageWeightPerPiece) nextWeight = Math.max(nextWeight - normalized.value * item.averageWeightPerPiece, 0);
-  } else if (normalized.unit === "g") {
-    nextWeight = Math.max(nextWeight - normalized.value, 0);
-    if (item.averageWeightPerPiece) nextPieces = Math.max(nextPieces - normalized.value / item.averageWeightPerPiece, 0);
-  } else if (normalized.unit === "ml") {
-    nextWeight = Math.max(nextWeight - normalized.value, 0);
+  } else if (["g", "kg", "ml", "cl", "l"].includes(normalized.unit)) {
+    nextWeight = Math.max(nextWeight - consumeAmount, 0);
+    if (item.averageWeightPerPiece) nextPieces = Math.max(nextPieces - consumeAmount / item.averageWeightPerPiece, 0);
   }
 
   const updated = enrichItem({
     ...item,
     remainingQuantity: nextRemaining,
     status: nextRemaining <= 0 ? "epuise" : "en_stock",
-    quantityWeight: item.unit === "g" || item.unit === "ml" ? nextRemaining || undefined : nextWeight || undefined,
+    quantityWeight: ["g", "kg", "ml", "cl", "l"].includes(item.unit) ? nextRemaining || undefined : nextWeight || undefined,
     quantityPieces: item.unit === "piece" || item.unit === "pack" ? nextRemaining || undefined : nextPieces || undefined,
   });
   updated.quantity = normalized.unit === "piece" || normalized.unit === "pack" ? nextPieces : item.quantity;
@@ -558,12 +657,13 @@ export async function consumeFridgeItemById(itemId: string, amount: number, unit
 
   const normalized = normalizeUnit(amount, unit);
   const currentRemaining = getRemainingQuantity(item);
-  const nextRemaining = Math.max(currentRemaining - normalized.value, 0);
+  const consumeAmount = convertBetweenUnits(normalized.value, normalized.unit, item.unit);
+  const nextRemaining = Math.max(currentRemaining - consumeAmount, 0);
   const updated = enrichItem({
     ...item,
     remainingQuantity: nextRemaining,
     status: nextRemaining <= 0 ? "epuise" : "en_stock",
-    quantityWeight: item.unit === "g" || item.unit === "ml" ? nextRemaining || undefined : item.quantityWeight,
+    quantityWeight: ["g", "kg", "ml", "cl", "l"].includes(item.unit) ? nextRemaining || undefined : item.quantityWeight,
     quantityPieces: item.unit === "piece" || item.unit === "pack" ? nextRemaining || undefined : item.quantityPieces,
     updatedAt: new Date().toISOString(),
   });
@@ -614,6 +714,37 @@ export async function updateFridgeItemQuantity(id: string, quantity: number, tot
   return nextItem;
 }
 
+export async function updateFridgeItemStock(id: string, patch: FridgeItemStockUpdate) {
+  const items = getFridgeItems();
+  const item = items.find((current) => current.id === id);
+  if (!item) throw new Error("Produit introuvable dans Mon Frigo.");
+
+  const unit = patch.unit ? normalizeSupportedUnit(patch.unit) : item.unit;
+  const initialQuantity = patch.initialQuantity ?? item.initialQuantity ?? getInitialQuantity(item);
+  const remainingQuantity = Math.max(0, patch.remainingQuantity ?? item.remainingQuantity ?? getRemainingQuantity(item));
+  const updated = enrichItem({
+    ...item,
+    unit,
+    quantity: remainingQuantity,
+    unitQuantity: 1,
+    totalQuantity: initialQuantity,
+    initialQuantity,
+    remainingQuantity,
+    purchasePrice: patch.purchasePrice ?? item.purchasePrice ?? null,
+    totalPrice: patch.purchasePrice ?? item.totalPrice,
+    lowStockThreshold: patch.lowStockThreshold ?? item.lowStockThreshold ?? 20,
+    quantityPieces: unit === "piece" || unit === "pack" ? remainingQuantity : undefined,
+    quantityWeight: ["g", "kg", "ml", "cl", "l"].includes(unit) ? remainingQuantity : undefined,
+    status: remainingQuantity <= 0 ? "epuise" : "en_stock",
+    updatedAt: new Date().toISOString(),
+  });
+
+  writeFridgeItems(items.map((current) => (current.id === id ? updated : current)));
+  const { error } = await supabase.from("fridge_items").update(toRowPayload(updated)).eq("id", id);
+  if (error) throwFridgeError(error);
+  return updated;
+}
+
 export function getFridgeItemQuantity(productName: string) {
   const item = findFridgeItem(productName);
   return item ? { item, weight: item.quantityWeight ?? 0, pieces: item.quantityPieces ?? 0 } : null;
@@ -625,10 +756,13 @@ export function calculateRecipeCost(ingredients: FridgeRecipeIngredient[]): Frid
     if (!item) return { ingredient, item: null, missing: ingredient.amount, cost: 0 };
 
     const normalized = normalizeUnit(ingredient.amount, ingredient.unit);
-    const available = normalized.unit === "piece" || normalized.unit === "pack" ? item.quantityPieces ?? 0 : item.quantityWeight ?? 0;
-    const missing = Math.max(normalized.value - available, 0);
-    const used = Math.min(normalized.value, available);
-    const cost = normalized.unit === "piece" || normalized.unit === "pack" ? used * (item.pricePerPiece ?? 0) : used * (item.pricePerGram ?? 0);
+    const requestedInItemUnit = convertBetweenUnits(normalized.value, normalized.unit, item.unit);
+    const available = getRemainingQuantity(item);
+    const missing = Math.max(requestedInItemUnit - available, 0);
+    const used = Math.min(requestedInItemUnit, available);
+    const initial = getInitialQuantity(item);
+    const unitCost = initial > 0 ? (item.purchasePrice ?? item.totalPrice ?? 0) / initial : 0;
+    const cost = used * unitCost;
 
     return { ingredient, item, missing, cost };
   });
@@ -648,7 +782,7 @@ export function prepareRecipe(ingredients: FridgeRecipeIngredient[]) {
 
 export function formatFridgeQuantity(item: FridgeItem) {
   const remainingQuantity = getRemainingQuantity(item);
-  if (remainingQuantity || remainingQuantity === 0) return `${Number(remainingQuantity.toFixed(2))} ${item.unit || "piece"}`;
+  if (remainingQuantity || remainingQuantity === 0) return formatQuantity(remainingQuantity, item.unit || "piece");
 
   const parts = [];
   if (item.quantityWeight) parts.push(`${Math.round(item.quantityWeight)} ${item.unit === "ml" ? "ml" : "g"}`);

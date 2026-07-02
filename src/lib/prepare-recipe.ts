@@ -8,6 +8,7 @@ import {
 } from "@/lib/fridge";
 import { getRecipe, recipes, type Recipe } from "@/lib/recipes";
 import { addOrIncrementNeed } from "@/lib/shopping-catalog";
+import { convertBetweenUnits } from "@/lib/units";
 
 export type PreparedRecipeIngredient = {
   name: string;
@@ -83,18 +84,19 @@ export async function prepareRecipe(recipeId: string, options: { servings?: numb
   for (const ingredient of scaleIngredients(recipe, options.servings)) {
     const normalized = normalizeUnit(ingredient.amount, ingredient.unit);
     const item = findFridgeItem(ingredient.name, getFridgeItems());
+    const requestedInItemUnit = item ? convertBetweenUnits(normalized.value, normalized.unit, item.unit) : normalized.value;
     const available = item ? getAvailableQuantity(item) : 0;
-    const consumedAmount = item ? Math.min(available, normalized.value) : 0;
-    const missingAmount = Math.max(normalized.value - consumedAmount, 0);
+    const consumedAmount = item ? Math.min(available, requestedInItemUnit) : 0;
+    const missingAmount = Math.max(requestedInItemUnit - consumedAmount, 0);
 
     if (item && consumedAmount > 0) {
-      await consumeFridgeItemById(item.id, consumedAmount, normalized.unit);
+      await consumeFridgeItemById(item.id, consumedAmount, item.unit);
     }
 
     const line = {
       name: ingredient.name,
-      requested: normalized.value,
-      unit: normalized.unit,
+      requested: requestedInItemUnit,
+      unit: item?.unit ?? normalized.unit,
       consumed: consumedAmount,
       missing: missingAmount,
     };
@@ -111,7 +113,7 @@ export async function prepareRecipe(recipeId: string, options: { servings?: numb
         category: inferNeedCategory(ingredient.name),
         name: ingredient.name,
         imageUrl: null,
-        unit: normalized.unit,
+        unit: item?.unit ?? normalized.unit,
         quantity: missingAmount,
         unitPrice: null,
         total: null,
