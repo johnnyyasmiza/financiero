@@ -1,7 +1,8 @@
 import { getTodayDate } from "@/lib/utils";
 import { normalizeCaisseKey } from "@/lib/caisse-config";
-import { detectProductUnit } from "@/lib/products/detect-product-unit";
+import { detectProductUnit, isDiaperProduct, isEggProduct } from "@/lib/products/detect-product-unit";
 import { ensureProductExists } from "@/lib/products/ensure-product";
+import { addOrIncrementNeed, getNeeds } from "@/lib/shopping-catalog";
 import { supabase } from "@/lib/supabase";
 import {
   calculateStockPercent,
@@ -41,6 +42,9 @@ export type FridgeItem = {
   purchaseDate: string;
   expiryDate?: string;
   lowStockThresholdPercent?: number;
+  autoConsume?: boolean | null;
+  dailyConsumption?: number | null;
+  lastAutoConsumedAt?: string | null;
 };
 
 export type FridgeItemInput = {
@@ -63,6 +67,9 @@ export type FridgeItemInput = {
   purchaseDate?: string;
   expiryDate?: string;
   lowStockThresholdPercent?: number;
+  autoConsume?: boolean | null;
+  dailyConsumption?: number | null;
+  lastAutoConsumedAt?: string | null;
 };
 
 export type FridgeItemStockUpdate = {
@@ -118,6 +125,9 @@ type FridgeItemRow = {
   purchase_date: string | null;
   expiry_date: string | null;
   status: string | null;
+  auto_consume?: boolean | null;
+  daily_consumption?: number | null;
+  last_auto_consumed_at?: string | null;
   created_at: string | null;
   updated_at: string | null;
 };
@@ -194,9 +204,27 @@ function getRemainingQuantity(item: FridgeItem) {
   return item.remainingQuantity ?? getDerivedQuantity(item);
 }
 
+function daysBetweenDates(startDate: string | null | undefined, endDate: string) {
+  if (!startDate) return 0;
+  const start = new Date(`${startDate.slice(0, 10)}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+  const diff = end.getTime() - start.getTime();
+  if (!Number.isFinite(diff) || diff <= 0) return 0;
+  return Math.floor(diff / 86_400_000);
+}
+
+function getAutoConsumeDefaults(name: string) {
+  if (!isDiaperProduct(name)) {
+    return { autoConsume: false, dailyConsumption: null };
+  }
+
+  return { autoConsume: true, dailyConsumption: 5 };
+}
+
 function resolveInputStock(input: FridgeItemInput) {
   const detected = detectProductUnit(input.name);
-  const requestedUnit = input.unit ? normalizeSupportedUnit(input.unit) : detected?.unit ?? "piece";
+  const forcedPiece = isEggProduct(input.name) || isDiaperProduct(input.name);
+  const requestedUnit = forcedPiece ? "piece" : input.unit ? normalizeSupportedUnit(input.unit) : detected?.unit ?? "piece";
   const unit = requestedUnit;
   const packCount = input.quantity && input.quantity > 0 ? input.quantity : 1;
 
@@ -227,7 +255,7 @@ function resolveInputStock(input: FridgeItemInput) {
 
   if (detected) {
     const totalQuantity = packCount * detected.quantity;
-    return { unit: detected.unit, quantity: totalQuantity, unitQuantity: 1, totalQuantity };
+    return { unit: forcedPiece ? "piece" as const : detected.unit, quantity: totalQuantity, unitQuantity: 1, totalQuantity };
   }
 
   const totalQuantity = packCount;
@@ -236,24 +264,30 @@ function resolveInputStock(input: FridgeItemInput) {
 
 function repairItemFromName(item: FridgeItem) {
   const detected = detectProductUnit(item.name);
-  if (!detected || detected.quantity <= 1) return item;
+  const forcedPiece = isEggProduct(item.name) || isDiaperProduct(item.name);
+  if (!detected && !forcedPiece) return item;
 
   const initial = getInitialQuantity(item);
   const remaining = getRemainingQuantity(item);
-  const looksBroken = item.status !== "epuise" && initial <= 1 && remaining <= 1;
-  if (!looksBroken) return item;
+  const detectedQuantity = detected?.quantity ?? initial;
+  const detectedUnit = forcedPiece ? "piece" : detected?.unit ?? item.unit;
+  const looksBroken = item.status !== "epuise" && initial <= 1 && remaining <= 1 && detectedQuantity > 1;
+  const hasWrongSpecialUnit = forcedPiece && item.unit !== "piece";
+  if (!looksBroken && !hasWrongSpecialUnit) return item;
+  const nextInitial = looksBroken ? detectedQuantity : initial;
+  const nextRemaining = looksBroken ? detectedQuantity : remaining;
 
   return enrichItem({
     ...item,
-    unit: detected.unit,
-    quantity: detected.quantity,
+    unit: detectedUnit,
+    quantity: nextRemaining,
     unitQuantity: 1,
-    totalQuantity: detected.quantity,
-    initialQuantity: detected.quantity,
-    remainingQuantity: detected.quantity,
-    quantityWeight: detected.unit === "g" || detected.unit === "kg" || detected.unit === "ml" || detected.unit === "cl" || detected.unit === "l" ? detected.quantity : undefined,
-    quantityPieces: detected.unit === "piece" || detected.unit === "pack" ? detected.quantity : undefined,
-    status: "en_stock",
+    totalQuantity: nextInitial,
+    initialQuantity: nextInitial,
+    remainingQuantity: nextRemaining,
+    quantityWeight: detectedUnit === "g" || detectedUnit === "kg" || detectedUnit === "ml" || detectedUnit === "cl" || detectedUnit === "l" ? nextRemaining : undefined,
+    quantityPieces: detectedUnit === "piece" || detectedUnit === "pack" ? nextRemaining : undefined,
+    status: nextRemaining <= 0 ? "epuise" : item.status ?? "en_stock",
   });
 }
 
@@ -293,6 +327,9 @@ function toRowPayload(input: FridgeItem) {
   const totalQuantity = input.totalQuantity ?? quantity * unitQuantity;
   const initialQuantity = input.initialQuantity ?? totalQuantity ?? quantity ?? 1;
   const remainingQuantity = input.remainingQuantity ?? totalQuantity ?? quantity ?? 1;
+  const autoDefaults = getAutoConsumeDefaults(input.name);
+  const autoConsume = input.autoConsume ?? autoDefaults.autoConsume;
+  const dailyConsumption = input.dailyConsumption ?? autoDefaults.dailyConsumption;
   return {
     product_id: isUuid(input.productId) ? input.productId : null,
     store: input.store || null,
@@ -309,12 +346,15 @@ function toRowPayload(input: FridgeItem) {
     purchase_price: input.purchasePrice ?? input.totalPrice ?? null,
     purchase_date: input.purchaseDate || getTodayDate(),
     status: remainingQuantity <= 0 ? "epuise" : input.status || "en_stock",
+    auto_consume: autoConsume,
+    daily_consumption: dailyConsumption,
+    last_auto_consumed_at: input.lastAutoConsumedAt ?? (autoConsume ? input.purchaseDate || getTodayDate() : null),
     updated_at: new Date().toISOString(),
   };
 }
 
 function fromRow(row: FridgeItemRow): FridgeItem {
-  const unit = normalizeSupportedUnit(row.unit);
+  const unit = isEggProduct(row.name) || isDiaperProduct(row.name) ? "piece" : normalizeSupportedUnit(row.unit);
   const detected = detectProductUnit(row.name);
   const rawQuantity = Number(row.quantity ?? 1);
   const totalQuantity = row.total_quantity === null || row.total_quantity === undefined ? null : Number(row.total_quantity);
@@ -350,8 +390,85 @@ function fromRow(row: FridgeItemRow): FridgeItem {
     purchaseDate: row.purchase_date ?? getTodayDate(),
     expiryDate: row.expiry_date ?? "",
     status: remainingQuantity <= 0 ? "epuise" : row.status ?? "en_stock",
+    autoConsume: row.auto_consume ?? getAutoConsumeDefaults(row.name).autoConsume,
+    dailyConsumption: row.daily_consumption ?? getAutoConsumeDefaults(row.name).dailyConsumption,
+    lastAutoConsumedAt: row.last_auto_consumed_at,
     updatedAt: row.updated_at,
   }));
+}
+
+async function ensureDiaperNeed(item: FridgeItem) {
+  const needs = await getNeeds();
+  const alreadyExists = needs.some((need) => need.status === "a_acheter" && isDiaperProduct(need.name));
+  if (alreadyExists) return;
+
+  await addOrIncrementNeed({
+    productId: item.productId ?? null,
+    store: item.store ?? "Frigo",
+    category: item.category || "Bebe",
+    name: "Couches",
+    imageUrl: item.imageUrl ?? null,
+    unit: "piece",
+    quantity: 1,
+    unitPrice: null,
+    total: null,
+  });
+}
+
+async function applyAutoConsumption(items: FridgeItem[]) {
+  const today = getTodayDate();
+  const updates: FridgeItem[] = [];
+
+  for (const item of items) {
+    if (!item.autoConsume || !isDiaperProduct(item.name)) continue;
+    const dailyConsumption = item.dailyConsumption && item.dailyConsumption > 0 ? item.dailyConsumption : 5;
+    const lastDate = item.lastAutoConsumedAt?.slice(0, 10) || item.purchaseDate;
+    const elapsedDays = daysBetweenDates(lastDate, today);
+    const remainingQuantity = getRemainingQuantity(item);
+    if (elapsedDays <= 0) {
+      if (remainingQuantity <= 15) await ensureDiaperNeed(item);
+      continue;
+    }
+
+    const nextRemaining = Math.max(remainingQuantity - elapsedDays * dailyConsumption, 0);
+    updates.push(enrichItem({
+      ...item,
+      unit: "piece",
+      quantity: nextRemaining,
+      totalQuantity: item.totalQuantity ?? item.initialQuantity ?? getInitialQuantity(item),
+      remainingQuantity: nextRemaining,
+      quantityPieces: nextRemaining,
+      status: nextRemaining <= 0 ? "epuise" : "en_stock",
+      autoConsume: true,
+      dailyConsumption,
+      lastAutoConsumedAt: today,
+      updatedAt: new Date().toISOString(),
+    }));
+  }
+
+  await Promise.all(
+    updates.map(async (item) => {
+      const { error } = await supabase
+        .from("fridge_items")
+        .update({
+          quantity: item.quantity ?? item.remainingQuantity ?? 0,
+          unit: "piece",
+          unit_quantity: 1,
+          remaining_quantity: item.remainingQuantity ?? 0,
+          status: item.status,
+          auto_consume: true,
+          daily_consumption: item.dailyConsumption ?? 5,
+          last_auto_consumed_at: item.lastAutoConsumedAt,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", item.id);
+
+      if (error) throwFridgeError(error);
+      if ((item.remainingQuantity ?? 0) <= 15) await ensureDiaperNeed(item);
+    }),
+  );
+
+  return items.map((item) => updates.find((updated) => updated.id === item.id) ?? item);
 }
 
 export function subscribeToFridge(onChange: () => void) {
@@ -409,15 +526,17 @@ export async function loadFridgeItems() {
   }
 
   const rows = (data ?? []) as FridgeItemRow[];
-  const items = rows.map(fromRow);
+  let items = rows.map(fromRow);
+  items = await applyAutoConsumption(items);
   const repairs = items.filter((item, index) => {
     const row = rows[index];
     return (
-      item.status !== "epuise" &&
-      (row.initial_quantity ?? row.total_quantity ?? row.quantity ?? 1) <= 1 &&
-      item.initialQuantity !== null &&
-      item.initialQuantity !== undefined &&
-      item.initialQuantity > 1
+      ((item.status !== "epuise" &&
+        (row.initial_quantity ?? row.total_quantity ?? row.quantity ?? 1) <= 1 &&
+        item.initialQuantity !== null &&
+        item.initialQuantity !== undefined &&
+        item.initialQuantity > 1) ||
+        ((isEggProduct(row.name) || isDiaperProduct(row.name)) && row.unit !== "piece"))
     );
   });
 
@@ -432,7 +551,10 @@ export async function loadFridgeItems() {
           total_quantity: item.totalQuantity ?? item.initialQuantity ?? 1,
           initial_quantity: item.initialQuantity ?? 1,
           remaining_quantity: item.remainingQuantity ?? item.initialQuantity ?? 1,
-          status: "en_stock",
+          status: item.remainingQuantity !== undefined && item.remainingQuantity !== null && item.remainingQuantity <= 0 ? "epuise" : "en_stock",
+          auto_consume: item.autoConsume ?? getAutoConsumeDefaults(item.name).autoConsume,
+          daily_consumption: item.dailyConsumption ?? getAutoConsumeDefaults(item.name).dailyConsumption,
+          last_auto_consumed_at: item.lastAutoConsumedAt ?? (item.autoConsume ? getTodayDate() : null),
           updated_at: new Date().toISOString(),
         })
         .eq("id", item.id),
@@ -477,6 +599,9 @@ export async function addFridgeItem(input: FridgeItemInput) {
   const quantityWeight = unit === "g" || unit === "kg" || unit === "ml" || unit === "cl" || unit === "l" ? totalQuantity : undefined;
   const quantityPieces = unit === "piece" || unit === "pack" ? quantity : undefined;
   const now = getTodayDate();
+  const autoDefaults = getAutoConsumeDefaults(input.name);
+  const autoConsume = input.autoConsume ?? autoDefaults.autoConsume;
+  const dailyConsumption = input.dailyConsumption ?? autoDefaults.dailyConsumption;
   const incoming = enrichItem({
     id: createId(),
     productId,
@@ -489,7 +614,7 @@ export async function addFridgeItem(input: FridgeItemInput) {
     totalQuantity,
     initialQuantity,
     remainingQuantity,
-    lowStockThreshold: input.lowStockThreshold ?? 20,
+    lowStockThreshold: input.lowStockThreshold ?? (autoConsume ? 15 : 20),
     purchasePrice: input.purchasePrice ?? input.totalPrice ?? null,
     quantityWeight,
     quantityPieces,
@@ -501,6 +626,9 @@ export async function addFridgeItem(input: FridgeItemInput) {
     expiryDate: input.expiryDate || "",
     lowStockThresholdPercent: input.lowStockThresholdPercent ?? 25,
     status: remainingQuantity <= 0 ? "epuise" : "en_stock",
+    autoConsume,
+    dailyConsumption,
+    lastAutoConsumedAt: input.lastAutoConsumedAt ?? (autoConsume ? input.purchaseDate || now : null),
   });
   const { data, error } = await supabase.from("fridge_items").insert(toRowPayload(incoming)).select("*").single();
   if (error) throwFridgeError(error);
@@ -533,6 +661,9 @@ export async function addFridgeItems(items: FridgeItemInput[]) {
     const totalQuantity = resolved.totalQuantity;
     const initialQuantity = input.initialQuantity ?? totalQuantity ?? quantity ?? 1;
     const remainingQuantity = input.remainingQuantity ?? totalQuantity ?? quantity ?? 1;
+    const autoDefaults = getAutoConsumeDefaults(input.name);
+    const autoConsume = input.autoConsume ?? autoDefaults.autoConsume;
+    const dailyConsumption = input.dailyConsumption ?? autoDefaults.dailyConsumption;
     return {
       product_id: productId,
       store: input.store || null,
@@ -545,10 +676,13 @@ export async function addFridgeItems(items: FridgeItemInput[]) {
       total_quantity: totalQuantity,
       initial_quantity: initialQuantity,
       remaining_quantity: remainingQuantity,
-      low_stock_threshold: input.lowStockThreshold ?? 20,
+      low_stock_threshold: input.lowStockThreshold ?? (autoConsume ? 15 : 20),
       purchase_price: input.purchasePrice ?? input.totalPrice ?? null,
       purchase_date: input.purchaseDate || now,
       status: remainingQuantity <= 0 ? "epuise" : "en_stock",
+      auto_consume: autoConsume,
+      daily_consumption: dailyConsumption,
+      last_auto_consumed_at: input.lastAutoConsumedAt ?? (autoConsume ? input.purchaseDate || now : null),
       updated_at: new Date().toISOString(),
     };
   }));
@@ -586,6 +720,7 @@ export function getLowStockAlerts(items = getFridgeItems()) {
       const progress = calculateStockProgress(item);
       const remainingQuantity = getRemainingQuantity(item);
       if (item.status === "epuise" || remainingQuantity <= 0) return { itemId: item.id, item, message: `Epuise : ${item.name}`, type: "critical" as const };
+      if (isDiaperProduct(item.name) && remainingQuantity <= 15) return { itemId: item.id, item, message: "Couches bientôt épuisées", type: "low" as const };
       if (item.status === "en_stock" && progress <= (item.lowStockThreshold ?? item.lowStockThresholdPercent ?? 20)) return { itemId: item.id, item, message: `Stock bas : ${item.name}`, type: "low" as const };
       return null;
     })
@@ -617,16 +752,17 @@ export async function consumeFridgeItem(productName: string, amount: number, uni
   if (!item) throw new Error(`${productName} est introuvable dans Mon Frigo.`);
 
   const normalized = normalizeUnit(amount, unit);
+  const consumeUnit = isEggProduct(item.name) || isDiaperProduct(item.name) ? "piece" : normalized.unit;
   const currentRemaining = getRemainingQuantity(item);
-  const consumeAmount = convertBetweenUnits(normalized.value, normalized.unit, item.unit);
+  const consumeAmount = convertBetweenUnits(normalized.value, consumeUnit, item.unit);
   const nextRemaining = Math.max(currentRemaining - consumeAmount, 0);
   let nextWeight = item.quantityWeight ?? currentRemaining;
   let nextPieces = item.quantityPieces ?? currentRemaining;
 
-  if (normalized.unit === "piece" || normalized.unit === "pack") {
+  if (consumeUnit === "piece" || consumeUnit === "pack") {
     nextPieces = Math.max(nextPieces - normalized.value, 0);
     if (item.averageWeightPerPiece) nextWeight = Math.max(nextWeight - normalized.value * item.averageWeightPerPiece, 0);
-  } else if (["g", "kg", "ml", "cl", "l"].includes(normalized.unit)) {
+  } else if (["g", "kg", "ml", "cl", "l"].includes(consumeUnit)) {
     nextWeight = Math.max(nextWeight - consumeAmount, 0);
     if (item.averageWeightPerPiece) nextPieces = Math.max(nextPieces - consumeAmount / item.averageWeightPerPiece, 0);
   }
@@ -638,7 +774,7 @@ export async function consumeFridgeItem(productName: string, amount: number, uni
     quantityWeight: ["g", "kg", "ml", "cl", "l"].includes(item.unit) ? nextRemaining || undefined : nextWeight || undefined,
     quantityPieces: item.unit === "piece" || item.unit === "pack" ? nextRemaining || undefined : nextPieces || undefined,
   });
-  updated.quantity = normalized.unit === "piece" || normalized.unit === "pack" ? nextPieces : item.quantity;
+  updated.quantity = consumeUnit === "piece" || consumeUnit === "pack" ? nextPieces : item.quantity;
   updated.totalQuantity = item.totalQuantity ?? item.initialQuantity ?? currentRemaining;
   const nextItems = items.map((current) => (current.id === item.id ? updated : current));
   writeFridgeItems(nextItems);
@@ -656,8 +792,9 @@ export async function consumeFridgeItemById(itemId: string, amount: number, unit
   if (!item) throw new Error("Produit introuvable dans Mon Frigo.");
 
   const normalized = normalizeUnit(amount, unit);
+  const consumeUnit = isEggProduct(item.name) || isDiaperProduct(item.name) ? "piece" : normalized.unit;
   const currentRemaining = getRemainingQuantity(item);
-  const consumeAmount = convertBetweenUnits(normalized.value, normalized.unit, item.unit);
+  const consumeAmount = convertBetweenUnits(normalized.value, consumeUnit, item.unit);
   const nextRemaining = Math.max(currentRemaining - consumeAmount, 0);
   const updated = enrichItem({
     ...item,

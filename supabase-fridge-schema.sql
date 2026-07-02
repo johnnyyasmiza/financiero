@@ -18,6 +18,9 @@ create table if not exists public.fridge_items (
   purchase_date date default current_date,
   expiry_date date,
   status text default 'en_stock',
+  auto_consume boolean default false,
+  daily_consumption numeric,
+  last_auto_consumed_at date,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

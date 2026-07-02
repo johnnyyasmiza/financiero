@@ -5,12 +5,13 @@ export type DetectedProductUnit = {
   unit: SupportedUnit;
 };
 
-function normalizeText(value: string) {
+export function normalizeProductUnitText(value: string) {
   return value
+    .replace(/[œŒ]/g, "oe")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
-    .replace(/œ/g, "oe")
+    .replace(/Å“/g, "oe")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -21,8 +22,33 @@ function toNumber(value: string | undefined) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+export function isEggProduct(label: string) {
+  return /\boeufs?\b/.test(normalizeProductUnitText(label));
+}
+
+export function isDiaperProduct(label: string) {
+  return /\bcouches?\b/.test(normalizeProductUnitText(label));
+}
+
 export function detectProductUnit(label: string): DetectedProductUnit | null {
-  const value = normalizeText(label);
+  const value = normalizeProductUnitText(label);
+  const isEggs = /\boeufs?\b/.test(value);
+  const isDiapers = /\bcouches?\b/.test(value);
+
+  if (isEggs || isDiapers) {
+    const pieces =
+      value.match(/\bx\s*(\d+(?:[.,]\d+)?)\b/i) ??
+      value.match(/\b(?:boite|boites|pack|paquet)\s+(?:de\s+)?(\d+(?:[.,]\d+)?)\s+(?:oeufs?|couches?)\b/i) ??
+      value.match(/\b(?:boite|boites|pack|paquet)\s+(?:oeufs?|couches?)\s+(\d+(?:[.,]\d+)?)\b/i) ??
+      value.match(/\b(?:oeufs?|couches?)\s+(\d+(?:[.,]\d+)?)\b/i) ??
+      value.match(/\b(\d+(?:[.,]\d+)?)\s+(?:oeufs?|couches?|pieces?|pcs?|unites?)\b/i);
+
+    return {
+      quantity: toNumber(pieces?.[1]) ?? 1,
+      unit: "piece",
+    };
+  }
+
   const combo = value.match(/\b(\d+(?:[.,]\d+)?)\s*x\s*(\d+(?:[.,]\d+)?)\s*(kg|g|gr|grammes?|l|litres?|cl|ml)\b/i);
   if (combo) {
     const count = toNumber(combo[1]) ?? 1;
