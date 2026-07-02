@@ -72,6 +72,14 @@ export type FridgeItemInput = {
   lastAutoConsumedAt?: string | null;
 };
 
+export type PurchasedFridgeItemInput = FridgeItemInput & {
+  productId: string;
+  initialQuantity: number;
+  remainingQuantity: number;
+  unit: string;
+  status?: string;
+};
+
 export type FridgeItemStockUpdate = {
   initialQuantity?: number | null;
   remainingQuantity?: number | null;
@@ -346,6 +354,38 @@ function toRowPayload(input: FridgeItem) {
     purchase_price: input.purchasePrice ?? input.totalPrice ?? null,
     purchase_date: input.purchaseDate || getTodayDate(),
     status: remainingQuantity <= 0 ? "epuise" : input.status || "en_stock",
+    auto_consume: autoConsume,
+    daily_consumption: dailyConsumption,
+    last_auto_consumed_at: input.lastAutoConsumedAt ?? (autoConsume ? input.purchaseDate || getTodayDate() : null),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function toPurchasedRowPayload(input: PurchasedFridgeItemInput) {
+  const unit = normalizeSupportedUnit(input.unit);
+  const initialQuantity = Number(input.initialQuantity);
+  const remainingQuantity = Number(input.remainingQuantity);
+  const quantity = remainingQuantity;
+  const autoDefaults = getAutoConsumeDefaults(input.name);
+  const autoConsume = input.autoConsume ?? autoDefaults.autoConsume;
+  const dailyConsumption = input.dailyConsumption ?? autoDefaults.dailyConsumption;
+
+  return {
+    product_id: input.productId,
+    store: input.store || null,
+    category: normalizeFridgeCategory(input.category || inferCategory(input.name)),
+    name: input.name,
+    image_url: input.imageUrl || null,
+    quantity,
+    unit,
+    unit_quantity: 1,
+    total_quantity: initialQuantity,
+    initial_quantity: initialQuantity,
+    remaining_quantity: remainingQuantity,
+    low_stock_threshold: input.lowStockThreshold ?? (autoConsume ? 15 : 20),
+    purchase_price: input.purchasePrice ?? input.totalPrice ?? null,
+    purchase_date: input.purchaseDate || getTodayDate(),
+    status: input.status || (remainingQuantity <= 0 ? "epuise" : "en_stock"),
     auto_consume: autoConsume,
     daily_consumption: dailyConsumption,
     last_auto_consumed_at: input.lastAutoConsumedAt ?? (autoConsume ? input.purchaseDate || getTodayDate() : null),
@@ -635,6 +675,74 @@ export async function addFridgeItem(input: FridgeItemInput) {
   const inserted = fromRow(data as FridgeItemRow);
   writeFridgeItems([inserted, ...getFridgeItems()]);
   return inserted;
+}
+
+export async function upsertPurchasedFridgeItems(items: PurchasedFridgeItemInput[]) {
+  const upserted: FridgeItem[] = [];
+
+  for (const item of items) {
+    if (!isUuid(item.productId)) {
+      throw new Error(`Produit sans product_id valide pour le frigo : ${item.name}`);
+    }
+
+    const { data: existing, error: selectError } = await supabase
+      .from("fridge_items")
+      .select("*")
+      .eq("product_id", item.productId)
+      .neq("status", "epuise")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (selectError) throwFridgeError(selectError);
+
+    if (existing) {
+      const existingRow = existing as FridgeItemRow;
+      const currentInitial = Number(existingRow.initial_quantity ?? existingRow.total_quantity ?? existingRow.quantity ?? 0);
+      const currentRemaining = Number(existingRow.remaining_quantity ?? existingRow.quantity ?? 0);
+      const currentPurchasePrice = Number(existingRow.purchase_price ?? 0);
+      const nextInitial = currentInitial + item.initialQuantity;
+      const nextRemaining = currentRemaining + item.remainingQuantity;
+      const nextPurchasePrice = currentPurchasePrice + Number(item.purchasePrice ?? item.totalPrice ?? 0);
+      const payload = {
+        ...toPurchasedRowPayload({
+          ...item,
+          initialQuantity: nextInitial,
+          remainingQuantity: nextRemaining,
+          purchasePrice: nextPurchasePrice,
+          status: "en_stock",
+        }),
+        created_at: undefined,
+      };
+
+      const { data, error } = await supabase
+        .from("fridge_items")
+        .update(payload)
+        .eq("id", existingRow.id)
+        .select("*")
+        .single();
+
+      if (error) throwFridgeError(error);
+      const updated = fromRow(data as FridgeItemRow);
+      console.log("FRIDGE_ITEM_UPSERTED", { productId: item.productId, mode: "update", itemId: updated.id });
+      upserted.push(updated);
+      continue;
+    }
+
+    const { data, error } = await supabase
+      .from("fridge_items")
+      .insert(toPurchasedRowPayload({ ...item, status: item.status || "en_stock" }))
+      .select("*")
+      .single();
+
+    if (error) throwFridgeError(error);
+    const inserted = fromRow(data as FridgeItemRow);
+    console.log("FRIDGE_ITEM_UPSERTED", { productId: item.productId, mode: "insert", itemId: inserted.id });
+    upserted.push(inserted);
+  }
+
+  writeFridgeItems([...upserted, ...getFridgeItems().filter((item) => !upserted.some((next) => next.id === item.id))]);
+  return upserted;
 }
 
 export async function addFridgeItems(items: FridgeItemInput[]) {

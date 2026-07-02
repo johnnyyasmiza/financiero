@@ -20,7 +20,7 @@ export type Expense = {
   date: string;
   payment: string;
   note?: string;
-  sourceType?: "purchase" | "receipt" | "voice" | "recipe_cost_internal";
+  sourceType?: "purchase" | "receipt" | "voice" | "recipe_cost_internal" | "caisse";
 };
 
 export type Income = {

@@ -122,7 +122,7 @@ function toExpense(row: ExpenseRow): Expense {
 }
 
 function parseSourceType(note: string | null): Expense["sourceType"] {
-  const match = note?.match(/sourceType:\s*(purchase|receipt|voice|recipe_cost_internal)/i);
+  const match = note?.match(/sourceType:\s*(purchase|receipt|voice|recipe_cost_internal|caisse)/i);
   return match?.[1] as Expense["sourceType"] | undefined;
 }
 

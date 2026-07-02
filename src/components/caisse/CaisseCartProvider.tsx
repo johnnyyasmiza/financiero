@@ -2,11 +2,15 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { addExpense } from "@/lib/finance-db";
-import { addNeeds, ensureProductExistsForStock, getProducts, subscribeToProducts, type ShoppingProduct } from "@/lib/shopping-catalog";
+import { addExpense, deleteExpense } from "@/lib/finance-db";
+import { isOnline } from "@/lib/offline-store";
+import { detectProductUnit } from "@/lib/products/detect-product-unit";
+import { ensureProductExists } from "@/lib/products/ensure-product";
+import { addNeeds, getProducts, subscribeToProducts, type ShoppingProduct } from "@/lib/shopping-catalog";
 import { formatCaissePrice } from "@/lib/caisse-config";
 import { getTodayDate } from "@/lib/utils";
-import { addFridgeItems } from "@/lib/fridge";
+import { upsertPurchasedFridgeItems } from "@/lib/fridge";
+import { normalizeUnit as normalizeSupportedUnit } from "@/lib/units";
 
 export type CaisseCartItem = {
   product: ShoppingProduct;
@@ -125,64 +129,106 @@ export function CaisseCartProvider({ children }: { children: React.ReactNode }) 
 
   const validateNow = useCallback(async () => {
     if (cart.length === 0) {
-      setError("Ajoutez au moins un produit au panier.");
+      setError("Panier vide");
       return;
     }
 
+    if (!isOnline()) {
+      setError("Connexion requise pour valider le panier sans risque de demi-validation.");
+      return;
+    }
+
+    const cartSnapshot = cart.filter((item) => item.quantity > 0);
+    const cartTotal = cartSnapshot.reduce((sum, item) => sum + lineTotal(item), 0);
+    const today = getTodayDate();
+    let createdExpenseId: string | null = null;
+
+    console.log("VALIDATE_CART_START", { itemCount: cartSnapshot.length, total: cartTotal });
     setIsSaving(true);
     setError("");
     setSuccess("");
 
     try {
       const expense = await addExpense({
-        amount: total,
-        merchant: getCartStore(cart),
-        category: "Alimentation",
+        amount: cartTotal,
+        merchant: getCartStore(cartSnapshot),
+        category: "Courses",
         payment: "Carte",
-        note: `sourceType: purchase\n${buildCartNote(cart)}`,
-        date: getTodayDate(),
+        note: `source: caisse\n${buildCartNote(cartSnapshot)}`,
+        sourceType: "caisse",
+        date: today,
       });
+      createdExpenseId = expense.id;
+      console.log("EXPENSE_CREATED", { id: expense.id, amount: expense.amount });
 
       try {
         const fridgePayload = await Promise.all(
-          cart.map(async (item) => {
-            const productForStock = await ensureProductExistsForStock(item.product);
-            const unitQuantity = item.product.unitQuantity && item.product.unitQuantity > 0 ? item.product.unitQuantity : null;
-            const totalQuantity = unitQuantity ? item.quantity * unitQuantity : null;
-            return {
-              productId: productForStock?.id ?? null,
+          cartSnapshot.map(async (item) => {
+            const productId = await ensureProductExists({
+              id: item.product.id,
+              productId: item.product.id,
               store: item.product.store,
               category: item.product.category,
               name: item.product.name,
               imageUrl: item.product.imageUrl,
-              quantity: item.quantity,
-              unit: item.product.unit ?? item.product.unitBase ?? "piece",
-              unitQuantity,
-              totalQuantity,
-              initialQuantity: totalQuantity,
-              remainingQuantity: totalQuantity,
+              price: item.product.price,
+              unit: item.product.unit,
+              unitQuantity: item.product.unitQuantity,
+              unitBase: item.product.unitBase,
+              pricePerBaseUnit: item.product.pricePerBaseUnit,
+              sourceUrl: item.product.sourceUrl,
+            });
+
+            if (!productId) {
+              throw new Error(`Produit impossible a creer dans products : ${item.product.name}`);
+            }
+
+            console.log("PRODUCT_ENSURED", { productId, name: item.product.name });
+            const detected = detectProductUnit(item.product.name);
+            const unit = detected?.unit ?? normalizeSupportedUnit(item.product.unitBase ?? item.product.unit);
+            const quantityPerCartUnit = detected?.quantity ?? (item.product.unitQuantity && item.product.unitQuantity > 0 ? item.product.unitQuantity : 1);
+            const purchasedQuantity = item.quantity * quantityPerCartUnit;
+
+            return {
+              productId,
+              store: item.product.store,
+              category: item.product.category,
+              name: item.product.name,
+              imageUrl: item.product.imageUrl,
+              quantity: purchasedQuantity,
+              unit,
+              unitQuantity: 1,
+              totalQuantity: purchasedQuantity,
+              initialQuantity: purchasedQuantity,
+              remainingQuantity: purchasedQuantity,
               lowStockThreshold: 20,
               purchasePrice: lineTotal(item),
-              purchaseDate: getTodayDate(),
+              purchaseDate: today,
+              status: "en_stock",
             };
           }),
         );
-        await addFridgeItems(fridgePayload);
+        await upsertPurchasedFridgeItems(fridgePayload);
       } catch (stockError) {
-        setError(`Depense creee (${expense.merchant || "courses"} - ${formatCaissePrice(expense.amount)}), mais le stock n'a pas ete ajoute.\n${stockError instanceof Error ? stockError.message : "Erreur stock inconnue."}`);
-        return;
+        if (createdExpenseId && !createdExpenseId.startsWith("offline-")) {
+          await deleteExpense(createdExpenseId);
+        }
+        throw stockError;
       }
 
       setCart([]);
-      setSuccess("Achat valide : depense + stock ajoutes.");
+      console.log("CART_CLEARED");
+      setSuccess("Courses validées : dépense créée et stock ajouté au frigo.");
+      console.log("VALIDATE_CART_SUCCESS", { expenseId: expense.id, itemCount: cartSnapshot.length });
       reloadProducts();
       router.refresh();
     } catch (saveError) {
+      console.error("VALIDATE_CART_ERROR", saveError);
       setError(saveError instanceof Error ? saveError.message : "Impossible de valider les courses.");
     } finally {
       setIsSaving(false);
     }
-  }, [cart, reloadProducts, router, total]);
+  }, [cart, reloadProducts, router]);
 
   const saveForLater = useCallback(async () => {
     if (cart.length === 0) {
